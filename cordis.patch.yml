@@ -1,0 +1,7 @@
+- insert:
+    - id: mcp-manager
+      name: '@oh-agent/dsh-mcp-manager'
+      config:
+        includeProjectScope: true
+        probeTimeoutMs: 20000
+        backupsToKeep: 20

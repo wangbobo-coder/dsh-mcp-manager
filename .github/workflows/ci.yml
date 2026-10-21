@@ -1,0 +1,73 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Host and client syntax
+        run: |
+          for file in lib/*.js; do
+            node --check "$file"
+            echo "ok $file"
+          done
+      - name: package.json is valid and declares dsh.bundle
+        run: |
+          node -e "
+            const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
+            if (!pkg.dsh || !pkg.dsh.bundle || !pkg.dsh.bundle.patch) {
+              console.error('package.json must declare dsh.bundle.patch');
+              process.exit(1);
+            }
+            if (pkg.name !== '@oh-agent/dsh-mcp-manager') {
+              console.error('unexpected package name: ' + pkg.name);
+              process.exit(1);
+            }
+            console.log('package.json ok: ' + pkg.name + '@' + pkg.version);
+          "
+      - name: Every exported file exists
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            for (const [key, target] of Object.entries(pkg.exports)) {
+              if (target.includes('*')) continue;
+              if (!fs.existsSync(target)) {
+                console.error('export ' + key + ' points at a missing file: ' + target);
+                process.exit(1);
+              }
+            }
+            console.log('exports ok');
+          "
+      - name: cordis.patch.yml names this bundle
+        run: |
+          node -e "
+            const text = require('fs').readFileSync('cordis.patch.yml', 'utf8');
+            if (!text.includes('@oh-agent/dsh-mcp-manager')) process.exit(1);
+            console.log('cordis.patch.yml ok');
+          "
+      - name: Locale files carry display metadata
+        run: |
+          node -e "
+            for (const file of ['locale/en.json', 'locale/zh.json']) {
+              const meta = JSON.parse(require('fs').readFileSync(file, 'utf8')).meta;
+              if (!meta || !meta.title || !meta.description) {
+                console.error(file + ' needs meta.title and meta.description');
+                process.exit(1);
+              }
+            }
+            console.log('locale ok');
+          "
+      - name: Test suites
+        run: |
+          for suite in scripts/test-*.mjs; do
+            echo "=== $suite"
+            node "$suite"
+          done
