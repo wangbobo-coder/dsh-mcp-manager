@@ -26,11 +26,11 @@
 直接对 agent 说「安装 @oh-agent/dsh-mcp-manager」，它等价于：
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.0"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.1"
 ```
 
 `target` 也可以填一个绝对目录 —— 本地源码目录，或者
-[v0.1.0 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
+[v0.1.1 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
 `dsh-mcp-manager.tgz` 解出来的目录。
 
 **不要**手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
@@ -64,12 +64,12 @@ Install the bundle from the **Plugin Manager** page in Settings, or point
 `plugin_manager` at the npm package:
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.0"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.1"
 ```
 
 An absolute directory works as `target` too, which is how you install a local
 checkout or the `dsh-mcp-manager.tgz` attached to the
-[v0.1.0 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
+[v0.1.1 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
 
 Do not `pnpm add` the package into the profile by hand, and do not edit the
 profile's `package.json` or `cordis.patch.yml`: installing a package is not the
@@ -405,3 +405,4 @@ node scripts/test-locale.mjs         en/zh key parity
 - **The MCP registry is not consulted.** `registry.modelcontextprotocol.io` is
   explicitly preview and not intended for direct host consumption, so server
   discovery is by scanning local files only.
+

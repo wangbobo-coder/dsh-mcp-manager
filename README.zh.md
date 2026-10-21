@@ -15,11 +15,11 @@
 直接说「安装 @oh-agent/dsh-mcp-manager」，等价于：
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.0"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.1"
 ```
 
 `target` 也可以填一个绝对目录 —— 本地源码目录，或者
-[v0.1.0 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
+[v0.1.1 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
 `dsh-mcp-manager.tgz` 解出来的目录。
 
 **不要**手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
@@ -222,3 +222,4 @@ node scripts/test-locale.mjs         en/zh key parity
 ## 许可证
 
 MIT
+
