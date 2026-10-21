@@ -6,7 +6,13 @@
 
 ## 安装
 
-从设置的「插件管理」页安装，或者让 `plugin_manager` 直接指向 npm 上的包：
+**方式一：插件管理页**（推荐）
+
+设置 → 插件管理 → 安装，搜索 `@oh-agent/dsh-mcp-manager`。
+
+**方式二：让 agent 安装**
+
+直接说「安装 @oh-agent/dsh-mcp-manager」，等价于：
 
 ```
 plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.0"
@@ -16,10 +22,10 @@ plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.0
 [v0.1.0 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
 `dsh-mcp-manager.tgz` 解出来的目录。
 
-不要手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
+**不要**手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
 `cordis.patch.yml`：装了包不等于选中了它的 bundle，手动装的后果是那一行存在但永远不会被挂载。
 
-安装后增加一个设置页和一个 agent 工具（`mcp_manage`）。它没有任何运行时依赖，不需要构建，也没有 `allowBuilds` 授权步骤。
+安装后增加一个设置页和一个 agent 工具（`mcp_manage`）。它没有任何运行时依赖，不需要构建，也没有 `allowBuilds` 授权步骤。要求 Node `^22.19.0 || >=24.0.0`（DeepSeek Harness 自带 Node 24，无需另装）。
 
 页面会读取其他工具的配置文件，但**开关不需要对它们有写权限**。所有数据都不离开本机 —— 唯一的对外流量是你主动点的那次探活，且只发往你点的那一个服务器。
 

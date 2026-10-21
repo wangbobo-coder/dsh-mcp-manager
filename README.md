@@ -1,5 +1,55 @@
 # @oh-agent/dsh-mcp-manager
 
+[English](#english) · 中文
+
+一个设置页，管理散落在本机各个 AI 开发工具里的 MCP 服务器。
+
+同一个 MCP 服务器，在 Claude Code 里写在 `~/.claude.json`，在 Cursor 里写在
+`~/.cursor/mcp.json`，在 VS Code 里叫 `servers` 而不是 `mcpServers`，在 OpenCode 里
+`command` 又变成了数组。这个插件把 18 个工具各自的配置文件读出来，按「文件」分组展示 ——
+每个配置文件一张卡片，点开看它声明了哪些服务器、每个服务器用什么启动命令、哪些字段带着明文令牌。
+每个服务器给一个开关，把它挂进 DeepSeek Harness；再给一次真连探活，看它到底能不能启动、
+手里有哪些工具。
+
+**开关只作用于 DeepSeek Harness，不改动任何其他工具的配置文件。** 这是整个插件最重要的一条约束。
+
+入口：DeepSeek Harness → **设置 → MCP**（位于「技能管理」和「插件市场」之间）。
+
+## 安装
+
+**方式一：插件管理页**（推荐）
+
+设置 → 插件管理 → 安装，搜索 `@oh-agent/dsh-mcp-manager`。
+
+**方式二：让 agent 安装**
+
+直接对 agent 说「安装 @oh-agent/dsh-mcp-manager」，它等价于：
+
+```
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.0"
+```
+
+`target` 也可以填一个绝对目录 —— 本地源码目录，或者
+[v0.1.0 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
+`dsh-mcp-manager.tgz` 解出来的目录。
+
+**不要**手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
+`cordis.patch.yml`：装了包不等于选中了它的 bundle，手动装的后果是那一行存在但永远不会被挂载。
+
+安装后增加一个设置页和一个 agent 工具（`mcp_manage`）。它没有任何运行时依赖，不需要构建，
+也没有 `allowBuilds` 授权步骤。要求 Node `^22.19.0 || >=24.0.0`（DeepSeek Harness 自带
+Node 24，无需另装）。
+
+页面会读取其他工具的配置文件，但**开关不需要对它们有写权限**。所有数据都不离开本机 ——
+唯一的对外流量是你主动点的那次探活，且只发往你点的那一个服务器。
+
+完整中文文档（支持的工具清单、方言差异、安全模型、已知限制）见
+[README.zh.md](README.zh.md)。
+
+---
+
+## English
+
 Management page for the MCP servers scattered across every local AI development
 tool — one card per configuration file showing what it declares, one switch per
 server that mounts it in DeepSeek Harness, and one probe of what actually
