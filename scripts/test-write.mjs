@@ -32,13 +32,23 @@ const root = mkdtempSync(join(tmpdir(), 'mcpm-write-'));
 const store = createStore({ root: join(root, 'state'), backupsToKeep: 5 });
 store.ensureDirs();
 
-/** Copy a real config into a scratch path and return that path. */
-function scratch(clientId, sourcePath) {
+/**
+ * Copy a real config into a scratch path and return that path.
+ *
+ * When the file is absent (CI on Linux, a colleague's machine, a fresh
+ * checkout) the caller's `fallback` is written instead, so the suite asserts
+ * against the *shape* rather than against whatever happens to be on this
+ * developer's disk. Without that fallback four cases failed on CI while
+ * passing here, which is the worst possible arrangement: a green local run
+ * that proves nothing about a clean machine.
+ */
+function scratch(clientId, sourcePath, fallback) {
   const client = CLIENT_BY_ID.get(clientId);
   const original = resolveClientPaths(client, undefined).find((item) => item.scope === 'global');
   const target = join(root, clientId, original.path.replace(/^[A-Za-z]:[\\/]/, '').replace(/[\\/]/g, '_'));
   mkdirSync(dirname(target), { recursive: true });
   if (sourcePath && existsSync(sourcePath)) copyFileSync(sourcePath, target);
+  else writeFileSync(target, fallback, 'utf8');
   return target;
 }
 
@@ -53,7 +63,23 @@ const SERVER = {
 
 console.log('json write path (opencode shape, real file copy)');
 
-const opencodePath = scratch('opencode', join(process.env.USERPROFILE ?? '', '.config', 'opencode', 'opencode.json'));
+/*
+ * The opencode document shape, mirroring what the real file looks like: a
+ * $schema, siblings that have nothing to do with MCP (plugin, provider), and an
+ * `mcp` map. The point of the test is that adding one server leaves the
+ * siblings byte-identical, so the fixture must carry siblings.
+ */
+const OPENCODE_SHAPE = `{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["superpowers@git+https://github.com/obra/superpowers.git"],
+  "provider": { "anthropic": { "npm": "@ai-sdk/anthropic" } },
+  "mcp": {
+    "existing": { "type": "local", "command": ["npx", "-y", "existing-mcp"], "enabled": true }
+  }
+}
+`;
+
+const opencodePath = scratch('opencode', join(process.env.USERPROFILE ?? '', '.config', 'opencode', 'opencode.json'), OPENCODE_SHAPE);
 
 await check('adds an entry to the real opencode root key and keeps every other subsection', async () => {
   const before = readFileSync(opencodePath, 'utf8');
