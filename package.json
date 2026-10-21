@@ -1,6 +1,6 @@
 {
   "name": "@oh-agent/dsh-mcp-manager",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "One settings page for every MCP server on your machine: scan each AI tool's own config file, see which directory holds which server, probe whether it really starts, and mount or unmount it in DeepSeek Harness without ever editing the other tools' files. / 一个设置页管理本机所有 AI 开发工具的 MCP：按配置文件分组展示、真连探活、只在 DeepSeek Harness 内挂载/卸载，绝不改动其他工具的配置。",
   "license": "MIT",
   "type": "module",
@@ -19,7 +19,7 @@
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
-    "README.zh.md",
+    "README.en.md",
     "LICENSE"
   ],
   "dsh": {

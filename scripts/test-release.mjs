@@ -41,7 +41,7 @@ check('the probe advertises the released version', () => {
 });
 
 check('both READMEs name the current version', () => {
-  for (const file of ['README.md', 'README.zh.md']) {
+  for (const file of ['README.md', 'README.en.md']) {
     const text = read(file);
     ok(text.includes(`@oh-agent/dsh-mcp-manager@${VERSION}`), `${file} does not install @${VERSION}`);
     ok(text.includes(`v${VERSION} release`), `${file} links a release other than v${VERSION}`);
@@ -49,12 +49,38 @@ check('both READMEs name the current version', () => {
 });
 
 check('no README still points at an older release', () => {
-  for (const file of ['README.md', 'README.zh.md']) {
+  for (const file of ['README.md', 'README.en.md']) {
     const stale = [...read(file).matchAll(/mcp-manager@(\d+\.\d+\.\d+)/g)]
       .map((m) => m[1])
       .filter((v) => v !== VERSION);
     equal(stale.length, 0, `${file} install targets an older version (${stale.join(', ')})`);
   }
+});
+
+check('the README default language is Chinese, with a switch to English', () => {
+  // The npm page shows README.md and nothing else, and most users here read
+  // Chinese. A bilingual file that opens with an English-only preamble was
+  // exactly the complaint this layout answers, so the Chinese side must be
+  // complete on its own and the switch must be reachable from the first lines.
+  const zh = read('README.md');
+  ok(zh.includes('[English](README.en.md)'), 'README.md does not link to the English page');
+  const head = zh.split('\n').slice(0, 6).join('\n');
+  ok(head.includes('README.en.md'), 'the language switch is not in the first lines of README.md');
+
+  const en = read('README.en.md');
+  ok(en.includes('[中文](README.md)'), 'README.en.md does not link back to the Chinese page');
+  // Chinese is allowed only where it is the subject: the switch label, and the
+  // real server names the mount-name section has to quote to make its point.
+  const prose = en
+    .split('\n')
+    .filter((line) => !line.includes('中文') && !line.includes('表单管理系统'))
+    .join('\n');
+  ok(!/[\u4e00-\u9fff]/.test(prose), 'README.en.md still carries Chinese prose');
+
+  // Same section skeleton, so the two pages document the same product rather
+  // than drifting apart one edit at a time.
+  const sections = (text) => [...text.matchAll(/^## .+/gm)].map((m) => m[0].trim());
+  equal(sections(en).length, sections(zh).length, 'README section count');
 });
 
 check('package name is the one the registry entry claims', () => {

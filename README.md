@@ -1,17 +1,8 @@
 # @oh-agent/dsh-mcp-manager
 
-[English](#english) · 中文
+**中文** · [English](README.en.md)
 
-一个设置页，管理散落在本机各个 AI 开发工具里的 MCP 服务器。
-
-同一个 MCP 服务器，在 Claude Code 里写在 `~/.claude.json`，在 Cursor 里写在
-`~/.cursor/mcp.json`，在 VS Code 里叫 `servers` 而不是 `mcpServers`，在 OpenCode 里
-`command` 又变成了数组。这个插件把 18 个工具各自的配置文件读出来，按「文件」分组展示 ——
-每个配置文件一张卡片，点开看它声明了哪些服务器、每个服务器用什么启动命令、哪些字段带着明文令牌。
-每个服务器给一个开关，把它挂进 DeepSeek Harness；再给一次真连探活，看它到底能不能启动、
-手里有哪些工具。
-
-**开关只作用于 DeepSeek Harness，不改动任何其他工具的配置文件。** 这是整个插件最重要的一条约束。
+一个设置页，管理散落在本机各个 AI 开发工具里的 MCP 服务器 —— 每个配置文件一张卡片，显示它声明了什么；每个服务器一个开关，把它挂载进 DeepSeek Harness；再加一次真连探活，看它到底能不能起来。
 
 入口：DeepSeek Harness → **设置 → MCP**（位于「技能管理」和「插件市场」之间）。
 
@@ -23,76 +14,31 @@
 
 **方式二：让 agent 安装**
 
-直接对 agent 说「安装 @oh-agent/dsh-mcp-manager」，它等价于：
+直接说「安装 @oh-agent/dsh-mcp-manager」，等价于：
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.1"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.2"
 ```
 
 `target` 也可以填一个绝对目录 —— 本地源码目录，或者
-[v0.1.1 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
+[v0.1.2 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
 `dsh-mcp-manager.tgz` 解出来的目录。
 
 **不要**手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
 `cordis.patch.yml`：装了包不等于选中了它的 bundle，手动装的后果是那一行存在但永远不会被挂载。
 
-安装后增加一个设置页和一个 agent 工具（`mcp_manage`）。它没有任何运行时依赖，不需要构建，
-也没有 `allowBuilds` 授权步骤。要求 Node `^22.19.0 || >=24.0.0`（DeepSeek Harness 自带
-Node 24，无需另装）。
+安装后增加一个设置页和一个 agent 工具（`mcp_manage`）。它没有任何运行时依赖，不需要构建，也没有 `allowBuilds` 授权步骤。要求 Node `^22.19.0 || >=24.0.0`（DeepSeek Harness 自带 Node 24，无需另装）。
 
-页面会读取其他工具的配置文件，但**开关不需要对它们有写权限**。所有数据都不离开本机 ——
-唯一的对外流量是你主动点的那次探活，且只发往你点的那一个服务器。
+页面会读取其他工具的配置文件，但**开关不需要对它们有写权限**。所有数据都不离开本机 —— 唯一的对外流量是你主动点的那次探活，且只发往你点的那一个服务器。
 
-完整中文文档（支持的工具清单、方言差异、安全模型、已知限制）见
-[README.zh.md](README.zh.md)。
+## 它解决什么问题
 
----
+同一个 MCP 服务器，在每个工具里声明在不同的文件、不同的键、不同的方言下：
 
-## English
-
-Management page for the MCP servers scattered across every local AI development
-tool — one card per configuration file showing what it declares, one switch per
-server that mounts it in DeepSeek Harness, and one probe of what actually
-answers.
-
-DeepSeek Harness → **Settings → MCP Manager** (between Skills Manager and
-Market).
-
-## Install
-
-Install the bundle from the **Plugin Manager** page in Settings, or point
-`plugin_manager` at the npm package:
-
-```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.1"
-```
-
-An absolute directory works as `target` too, which is how you install a local
-checkout or the `dsh-mcp-manager.tgz` attached to the
-[v0.1.1 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
-
-Do not `pnpm add` the package into the profile by hand, and do not edit the
-profile's `package.json` or `cordis.patch.yml`: installing a package is not the
-same as selecting its bundle, so doing it manually leaves the row present but
-never mounted.
-
-Either way the bundle adds one settings tab and one agent tool (`mcp_manage`);
-it declares no runtime dependencies, so there is nothing to build and no
-`allowBuilds` step.
-
-The page reads other tools' configuration files but never needs write access to
-them for the switch. Nothing leaves the machine — the only outbound traffic is a
-probe you ask for, and only to the server you asked about.
-
-## The problem it solves
-
-An MCP server is declared in a different file, under a different key, in a
-different dialect for every tool:
-
-| tool | file (Windows) | top-level key |
+| 工具 | 文件（Windows） | 顶层键 |
 | --- | --- | --- |
 | Claude Desktop | `%APPDATA%\Claude\claude_desktop_config.json` | `mcpServers` |
-| Claude Code | `~/.claude.json`, `<proj>/.mcp.json` | `mcpServers` |
+| Claude Code | `~/.claude.json`、`<proj>/.mcp.json` | `mcpServers` |
 | Cursor | `~/.cursor/mcp.json` | `mcpServers` |
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
 | VS Code | `<ws>/.vscode/mcp.json` | `servers` |
@@ -106,57 +52,39 @@ different dialect for every tool:
 | Copilot CLI | `~/.copilot/mcp-config.json` | `mcpServers` |
 | Kiro | `~/.kiro/settings/mcp.json` | `mcpServers` |
 | Zed | `settings.json` | `context_servers` |
-| Continue | `~/.continue/config.yaml` | `mcpServers` (YAML array) |
+| Continue | `~/.continue/config.yaml` | `mcpServers`（YAML 数组） |
 | CodeBuddy | `%APPDATA%\CodeBuddy\...` | `mcpServers` |
-| **DeepSeek Harness** | profile composition | `@deepseek-ai/dsh-mcp-client` rows |
+| **DeepSeek Harness** | profile 组合文件 | `@deepseek-ai/dsh-mcp-client` 行 |
 
-The differences are not cosmetic and they are where hand-editing goes wrong:
+这些差异不是美观问题，而是手改最容易翻车的地方：
 
-- **Remote transport is spelled differently.** Windsurf only accepts
-  `serverUrl` — a `url` key is silently ignored. Gemini and Qwen distinguish
-  `url` (SSE) from `httpUrl` (streamable HTTP), while Roo spells streamable
-  HTTP `streamable-http`.
-- **Timeouts change unit.** Millisecond fields in Gemini/Qwen/DSH, seconds in
-  Roo.
-- **Commands differ in shape.** OpenCode takes `command` as an array and `env`
-  as `environment`; everything else takes a string plus a separate `args`.
-- **Some files are shared with unrelated state.** `~/.claude.json` also holds
-  history and OAuth tokens; `opencode.json` holds providers and plugins. A
-  whole-file rewrite destroys them.
+- **远程传输的拼写不同。** Windsurf 只认 `serverUrl`，写成 `url` 会被静默忽略。Gemini 和 Qwen 区分 `url`（SSE）与 `httpUrl`（streamable HTTP），而 Roo 把 streamable HTTP 拼成 `streamable-http`。
+- **超时单位不同。** Gemini / Qwen / DSH 是毫秒，Roo 是秒。
+- **命令的形态不同。** OpenCode 的 `command` 是数组，`env` 叫 `environment`；其他工具是字符串 `command` 加独立的 `args`。
+- **有些文件混着无关状态。** `~/.claude.json` 里还有历史记录和 OAuth token；`opencode.json` 里有 provider 和 plugin。整文件重写会把这些一起毁掉。
 
-This plugin reads all of it into one model and writes back only the entry it
-means to change.
+本插件把这一切读入同一个模型，写回时只改它想改的那一条。
 
-### Windows and macOS
+### Windows 与 macOS
 
-Nothing is hard-coded to one platform. Each adapter declares its file through a
-resolver that reads the OS at module load:
+没有任何路径写死在单一平台上。每个适配器通过读取操作系统的解析器声明自己的文件：
 
-| root | Windows | macOS |
+| 根 | Windows | macOS |
 | --- | --- | --- |
 | `appData()` | `%APPDATA%` | `~/Library/Application Support` |
 | `xdgConfig()` | `~/.config` | `~/.config` |
 | `vscodeUserDir()` | `%APPDATA%\Code\User` | `~/Library/Application Support/Code/User` |
 | `zedConfig()` | `%APPDATA%\Zed` | `~/.config/zed` |
-| `HOME`-relative | `~/.codex`, `~/.cursor`, … | identical |
+| `HOME` 相对 | `~/.codex`、`~/.cursor` … | 相同 |
 
-Zed is the exception worth naming: on macOS it reads `~/.config/zed`, **not**
-Application Support, so it gets its own resolver. `APPDATA`, `XDG_CONFIG_HOME`
-and `COPILOT_HOME` are honoured when set.
-Project-scope paths are always joined onto the workspace root, so they are
-portable by construction. `scripts/test-paths.mjs` loads the real adapter source
-under a simulated `win32`, `darwin` and `linux` and asserts the resolved
-directory for every client.
+Zed 是值得点名的例外：macOS 上它读 `~/.config/zed`，**不是** Application Support，所以它有独立解析器。`APPDATA`、`XDG_CONFIG_HOME`、`COPILOT_HOME` 被设置时会生效。
 
-The file table above is written the way Windows shows it (`%APPDATA%`, `\`); on
-macOS the same rows resolve under `~/Library/Application Support/`. The scanner
-reports the real absolute path it found, so the page always shows the truth for
-the machine it is running on.
+项目级路径始终拼在工作区根目录上，天然可移植。`scripts/test-paths.mjs` 在模拟的 `win32`、`darwin`、`linux` 下加载真实的适配器源码，逐个客户端断言解析出的目录。
 
-## Architecture
+## 架构
 
 ```
-client.js  (settings page)          index.js  (host entry)
+client.js  (设置页)                 index.js  (宿主入口)
         │                                  │
         └──────── /api/dsh-mcp-manager ────┘
                     │         │
@@ -164,212 +92,109 @@ client.js  (settings page)          index.js  (host entry)
                  │          │            │
            adapters.js  store.js    surgical.js
                  │          │            │
-           canonical.js  ledger+     byte-preserving
-          (one model)    backups      JSON/TOML/YAML
+           canonical.js  ledger+    保字节编辑
+          (统一模型)      备份       JSON/TOML/YAML
                              │
                     dsh.js + dsh-patch.js + toggle.js
 ```
 
-- **`canonical.js` — the single semantic model.** Every client entry decodes to
-  `{name, transport, command, args, env, url, headers, timeoutMs, enabled,
-  autoApprove, extra, secrets}`. Capabilities are *not* flattened to the lowest
-  common denominator: a field a client cannot express is dropped on write and
-  reported as `droppedFields`, never silently invented.
-- **`adapters.js` — the only format-aware layer.** Eighteen clients described as
-  data: container key, dialect (which key means url, which type strings map to
-  which transport, timeout unit), capabilities, and where the file lives.
-- **`surgical.js` — byte-preserving editors.** Offset-carrying parse trees and
-  bottom-up edits, so an entry can be replaced without reformatting the file.
-  Comments, trailing commas, CRLF, and unrelated keys survive; unparsable input
-  is refused rather than rewritten.
-- **`store.js` — the safety net.** A backup of the pre-write bytes, a
-  compare-and-set hash check, and an ownership ledger.
-- **`probe.js` — does it actually work.** A hand-written JSON-RPC client (no
-  dependency on `@modelcontextprotocol/sdk`): spawn stdio → `initialize` →
-  `notifications/initialized` → `tools/list`; for remote, POST with
-  `Accept: application/json, text/event-stream` and follow an SSE response.
-  Read-only — it never invokes a tool.
-- **`dsh.js` / `dsh-patch.js` / `toggle.js` — Harness itself as a first-class
-  target.** Existing rows are rewritten through `configEditor.edit()` (validated,
-  hot-reloaded). A brand-new server has no row to address, so it goes into the
-  composition's `- insert:` patch layer, where the Loader picks it up on its own
-  — the operation waits for that row and reports `live: true`.
-  If the budget expires first it reports `activating: true`, **never** "restart
-  required": a patch row is only written where the Loader can see it, so it always
-  arrives eventually, and telling the user to restart for a server that is already
-  coming up was measured to be wrong here (mounting several servers back to back
-  pushed reconciliation past any fixed budget, then all of them appeared live).
-  `toggle.js` is the mount switch: a live row goes through
-  `pluginManager.setPluginEnabled`, an unmounted one gets the same
-  `disabled: true` override item the plugin manager writes, and a server that
-  lives only in another tool is first written to the patch layer.
+- **`canonical.js` —— 唯一的语义模型。** 每个客户端条目都解码为 `{name, transport, command, args, env, url, headers, timeoutMs, enabled, autoApprove, extra, secrets}`。能力**不**向最小公约数对齐：某个客户端表达不了的字段，写入时丢弃并作为 `droppedFields` 上报，绝不悄悄编造。
+- **`adapters.js` —— 唯一懂格式的层。** 十八个客户端即数据：容器键、方言（哪个键表示 url、哪种 type 字符串映射到哪种传输、超时单位）、能力、文件位置。
+- **`surgical.js` —— 保字节编辑器。** 携带偏移量的解析树 + 自底向上的编辑，替换一条不会重排整个文件。注释、尾逗号、CRLF、无关的键都活下来；解析不了就拒绝，而不是重写。
+- **`store.js` —— 安全网。** 写入前字节备份、比较并交换的哈希校验、归属台账。
+- **`probe.js` —— 它到底能不能用。** 手写的 JSON-RPC 客户端（不依赖 `@modelcontextprotocol/sdk`）：spawn stdio → `initialize` → `notifications/initialized` → `tools/list`；远程则 POST，带 `Accept: application/json, text/event-stream` 并跟随 SSE 响应。只读 —— 从不调用任何工具。
+- **`dsh.js` / `dsh-patch.js` / `toggle.js` —— 把 Harness 自己也当成一等目标。** 已存在的行通过 `configEditor.edit()` 改写（校验 + 热重载）。全新的服务器没有行可寻址，于是写进组合文件的 `- insert:` 补丁层，Loader 会自己把它拾起来 —— 操作会等这一行出现并上报 `live: true`。
 
-  Discovery reads `entry.options.name`, not `entry.name`: a live Loader entry
-  has no `name` property of its own (verified against a running Host), and
-  checking the wrong field silently matches zero rows — which made every mounted
-  server look unreconciled and demand a restart that was never required.
+  如果预算内没等到，它上报 `activating: true`，**绝不**说「需要重启」：补丁行只会写在 Loader 看得见的地方，所以它迟早会生效。给一个正在生效中的服务器提示重启是实测出来的错误 —— 连续挂载多个服务器会把重排推过任何固定预算，随后它们全部以 live 出现。
 
-## Safety model
+  发现逻辑读的是 `entry.options.name`，不是 `entry.name`：运行中的 Loader 条目自身没有 `name` 属性（已在运行中的 Host 上验证过），读错字段会静默匹配到零行 —— 结果每个已挂载的服务器都看起来没生效，并索要一次根本不需要的重启。
 
-The write path is built around one rule: **only rewrite what we can prove we
-wrote.**
+## 安全模型
 
-1. **Ownership ledger.** Every write records
-   `{path, serverName, fingerprint}`. A later write of the same name is applied
-   only if the definition on disk still matches the fingerprint — the user has
-   not edited it in the meantime.
-2. **A foreign server is never clobbered.** A name already taken by an entry we
-   did not write is treated as the user's: the incoming server gets a suffixed
-   name instead.
-3. **Optimistic concurrency.** The caller passes the hash it scanned; a changed
-   file returns `409` with the current hash, and the UI offers a re-scan. Silent
-   last-write-wins is not possible.
-4. **Backup before every mutation**, retained per the `backupsToKeep` config,
-   restorable from the page.
-5. **Atomic replace.** Write a temp file, `rename` over the target, then read
-   back and re-parse to prove the result is valid.
-6. **Credentials are masked before they leave the host.** Masking is
-   key-driven, not value-driven — a short token (`TOKEN=abc`) is still masked,
-   while an indirection (`${FIGMA_API_KEY}`) is shown as-is because it names a
-   secret rather than carrying one. It covers every place a literal hides: env,
-   headers, unmodelled `extra`, the raw entry copy, and command-line flags
-   (`--figma-api-key=figd_…`, which is the documented invocation for several
-   servers and is not an `env` entry at all). `reveal` is an explicit,
-   confirmed action.
-7. **Literal credentials are refused in project scope.** Writing a plaintext
-   key into a file destined for a repository fails with a hint to use an
-   environment reference.
-8. **A masked definition can never be written back.** The browser only holds
-   the redacted copy, so every write resolves the definition from the host-side
-   scan; if a mask (`figd••••0000`) still reaches a write path it is refused
-   with `error.server.masked` instead of replacing a real credential with
-   bullets.
-9. **Mutation requests need a custom header** (`x-dsh-mcp-manager: 1`) on top
-   of the JSON content-type and the loopback-origin check — a cross-site form
-   cannot set it.
+写入路径围绕一条规则构建：**只重写我们能证明是自己写的东西。**
 
-## The switch mounts into DeepSeek Harness — and nothing else
+1. **归属台账。** 每次写入记录 `{path, serverName, fingerprint}`。之后同名写入只有在磁盘上的定义仍与该指纹一致（用户没改过）时才生效。
+2. **绝不覆盖别人的服务器。** 名字已被非我们写入的条目占用时，视为用户的：新来的服务器改用带后缀的名字。
+3. **乐观并发。** 调用方传入它扫描到的哈希；文件变了就返回 `409` 和当前哈希，界面提示重新扫描。不存在静默的后写覆盖。
+4. **每次修改前备份**，按 `backupsToKeep` 保留，可在页面还原。
+5. **原子替换。** 写临时文件、`rename` 覆盖目标、再读回并重新解析，证明结果是合法的。
+6. **凭据在离开宿主前就被掩码。** 掩码是按键驱动的，不是按值形状 —— 短 token（`TOKEN=abc`）照样掩码，而间接引用（`${FIGMA_API_KEY}`）原样显示，因为它指向密钥名而不是携带密钥。覆盖字面值所有可能藏身的地方：`env`、`headers`、未建模的 `extra`、原始条目副本，以及命令行参数（`--figma-api-key=figd_…`，这是好几个服务器的官方调用方式，根本不在 `env` 里）。`reveal` 是需要显式确认的动作。
+7. **项目作用域拒绝字面凭据。** 往要进仓库的文件里写明文密钥会失败，并提示改用环境变量引用。
+8. **被掩码的定义永远写不回去。** 浏览器手里只有脱敏副本，所以每次写入都从宿主侧的扫描结果解析定义；万一 `figd••••0000` 还是流到了写入路径，会以 `error.server.masked` 拒绝，而不是把真实凭据换成圆点。
+9. **变更请求需要自定义头**（`x-dsh-mcp-manager: 1`），叠加在 JSON content-type 和 loopback 来源校验之上 —— 跨站表单设不了这个头。
 
-The one control on each row is a switch, and it has exactly one meaning: **is
-this server mounted in DeepSeek Harness?**
+## 开关只把服务器挂进 DeepSeek Harness，别的什么都不动
 
-Turning it on mounts the server here. Turning it off unmounts it. The file the
-definition came from is never opened for writing by the switch — verified by
-hashing every client config before and after a mount/unmount cycle on this
-machine, all unchanged.
+每行上的唯一控件是一个开关，含义只有一条：**这个服务器有没有挂进 DeepSeek Harness？**
 
-That restriction is not squeamishness, it is what the formats force. Most clients
-have no enable field at all: Qoder's and Trae's `mcp.json` carry no enable-ish key
-whatsoever. Writing one would be a switch that lies.
+打开就在 Harness 里挂载，关闭就卸载。定义来自哪个文件，开关**从不**以写入方式打开 —— 通过在本机对一次挂载/卸载循环前后哈希每个客户端配置来验证，全部未变。
 
-How the mount works, by case:
+这个限制不是洁癖，是格式逼出来的：大多数客户端根本没有 enable 字段。Qoder 和 Trae 的 `mcp.json` 里没有任何 enable 之类的键。写一个进去，就是一个会撒谎的开关。
 
-| the server is | the switch does | takes effect |
+按情形说明挂载怎么实现：
+
+| 服务器是 | 开关做的事 | 生效时机 |
 | --- | --- | --- |
-| an `- insert:` item we wrote | deletes the item on off, rewrites it on on | on reconcile; the file returns to its exact previous bytes |
-| already a live `dsh-mcp-client` row | `pluginManager.setPluginEnabled(rowId, …)` | instantly — the row unmounts and its tools leave the tool list |
-| an `- insert:` item the user wrote | appends/removes the same `- id: …` / `disabled: true` override the plugin manager itself writes | on reconcile |
-| declared in another tool only, and switched on | writes a new `- insert:` row | live as soon as the Loader reconciles it (usually 1–4 s); the operation waits up to 8 s and reports `live: true`, else `activating: true` |
-| not mounted anywhere, and switched off | nothing — already true, no dangling override | — |
+| 我们自己写的 `- insert:` 项 | 关：删掉该项；开：重写它 | 重排后生效；文件回到精确的原始字节 |
+| 已经是运行中的 `dsh-mcp-client` 行 | `pluginManager.setPluginEnabled(rowId, …)` | 立即 —— 行卸载，其工具从工具列表消失 |
+| 用户自己写的 `- insert:` 项 | 追加/移除插件管理器自己也会写的那种 `- id: …` / `disabled: true` 覆盖项 | 重排后生效 |
+| 只声明在别的工具里，且被打开 | 写一条新的 `- insert:` 行 | Loader 重排后即生效（通常 1–4 秒）；操作最多等 8 秒并上报 `live: true`，否则 `activating: true` |
+| 哪里都没挂载，且被关闭 | 什么都不做 —— 本就是事实，不留悬空覆盖项 | — |
 
-Our own row is removed before the Loader path is tried: the plugin manager can
-dispose a row hot, but it does so by appending a `disabled: true` override beside
-the definition, which would leave both our row and that override in the user's
-composition permanently. Removing the insert item is both the unmount and the
-cleanup.
+我们自己写的行会在尝试 Loader 路径之前被移除：插件管理器确实能热卸载一行，但它的做法是在定义旁边追加一条 `disabled: true` 覆盖项，那会让我们的行和这条覆盖项一起永久留在用户的组合文件里。删除 insert 项既是卸载也是清理。
 
-Because the override is a separate item and not a rewrite, and because a row we
-wrote is removed rather than disabled, a full mount → unmount cycle returns
-`cordis.patch.yml` to its exact previous bytes.
+因为覆盖项是独立的一项而不是重写，且我们自己写的行是删除而不是禁用，一次完整的挂载 → 卸载循环会把 `cordis.patch.yml` 还原到精确的原始字节。
 
-### A mount name is not always the display name
+### 挂载名不总是显示名
 
-`@deepseek-ai/dsh-mcp-client` requires `serverName` to match
-`/^[A-Za-z0-9_-]{1,32}$/`. Many real servers do not — this machine has a dozen
-named `表单管理系统 - API 文档` and friends, and `Figma AI Bridge` has a space.
-Squeezing those through `sanitizeName` alone gives `API` for every Chinese name,
-so a second mount would collide with the first and the switch would flip the wrong
-server.
+`@deepseek-ai/dsh-mcp-client` 要求 `serverName` 匹配 `/^[A-Za-z0-9_-]{1,32}$/`。现实中很多服务器不满足 —— 这台机器上有十几个叫 `表单管理系统 - API 文档` 之类，`Figma AI Bridge` 带空格。只用 `sanitizeName` 压一遍，所有中文名都会变成 `API`，第二个挂载就会和第一个撞名，开关就会翻错服务器。
 
-`canonical.js` therefore exports `dshMountName(name)`: sanitize, and if the result
-lost information (CJK characters, spaces, over-length) append a short hash of the
-original — `表单管理系统 - API 文档` → `API-c2f500c4`, `Figma AI Bridge` →
-`Figma-AI-Bridge`. It is pure and total, so the write path, the scan, the toggle
-and the removal all compute the same string from the same input without storing a
-mapping anywhere.
+因此 `canonical.js` 导出 `dshMountName(name)`：先 sanitize，如果结果丢了信息（中日韩字符、空格、超长），就追加原名的短哈希 —— `表单管理系统 - API 文档` → `API-c2f500c4`，`Figma AI Bridge` → `Figma-AI-Bridge`。它是纯函数且全域的，所以写入路径、扫描、开关、移除都从同一输入算出同一字符串，不需要在任何地方存映射表。
 
-Consequences the scan and the page handle:
+扫描和页面处理的后果：
 
-- the node keeps its display name; `mountedAs` carries the row name and `entryId`
-  the Loader id, so the switch finds its row under the mapped name;
-- the server appears under the DSH file card with its display name, and the
-  original tools' cards are unchanged;
-- two servers that sanitize to the same base still get distinct row names (the
-  hash differs), so no server silently replaces another.
+- 节点保留显示名；`mountedAs` 携带行名，`entryId` 携带 Loader id，开关按映射后的名字找到自己的行；
+- 服务器出现在 DSH 那张文件卡片里时用显示名，其他工具的卡片不变；
+- 两个 sanitize 后同名基的服务器仍得到不同的行名（哈希不同），不会有服务器悄悄替换另一个。
 
-`scripts/test-mount-name.mjs` pins the mapping, including the collision case and
-the round trip through scan.
+`scripts/test-mount-name.mjs` 钉住了这个映射，包括撞名情形和经由 scan 的往返。
 
-## Using it
+## 怎么用
 
-The page is laid out like the skills page it sits next to: a title row with the
-actions, a four-cell summary strip (servers · files · mounted in DSH · literal
-credentials), a filter row, then one bordered card per config file.
+页面布局和它旁边的技能页一致：标题行加操作按钮，四格汇总条（服务器 · 文件 · 已挂载进 DSH · 字面凭据），筛选行，然后每个配置文件一张带边框的卡片。
 
-Each card lists the servers that file declares — headed by the tool name, the
-server count and the path (shortened to `%APPDATA%\…` style, full path in the
-tooltip). A card collapses; while a filter is active every card opens, because a
-match hidden inside a collapsed card reads as "no results". Every row shows the
-transport, the command or URL, how many tools share the definition, its probe
-result, and the mount switch.
+每张卡片列出该文件声明的服务器 —— 头部是工具名、服务器数量和路径（缩短成 `%APPDATA%\…` 风格，完整路径在 tooltip 里）。卡片可折叠；筛选生效时所有卡片都会展开，因为藏在折叠卡片里的命中会被读成「没有结果」。每行显示传输方式、命令或 URL、有多少工具共用这份定义、探活结果，以及挂载开关。
 
-The filters are a free-text search (name, command, path) plus two selects: by
-tool, and by mount state (mounted / not mounted).
+筛选是一个自由文本搜索（名字、命令、路径）加两个下拉：按工具、按挂载状态（已挂载 / 未挂载）。
 
-Clicking a row opens a dialog rather than expanding it in place — inline
-expansion reflows every row below and made the card look like two stacked cards.
-The dialog lists every file that declares the server, the canonical definition,
-a paste-ready YAML row for a cordis composition, and "copy to…" for pushing the
-definition into another tool.
+点击一行打开对话框，而不是在原地展开 —— 原地展开会把它下面每一行都重排，让一张卡片看起来像两张叠在一起。对话框列出声明该服务器的每个文件、统一后的定义、一条可直接粘贴进 cordis 组合的 YAML 行，以及「复制到…」用于把定义推到别的工具。
 
-The same operations are exposed to the agent as the `mcp_manage` tool, so the
-page and the agent share one implementation and cannot diverge:
+同一批操作也以 `mcp_manage` 工具暴露给 agent，所以页面和 agent 共用一份实现，不可能走岔：
 
 ```
 action: scan | probe | toggle | apply | remove | sync | snippet | reveal | history
 ```
 
-## Configuration
+## 配置
 
-`cordis.patch.yml` row config:
+`cordis.patch.yml` 行配置：
 
-| key | default | meaning |
+| 键 | 默认 | 含义 |
 | --- | --- | --- |
-| `includeProjectScope` | `true` | also scan workspace-level files |
-| `probeTimeoutMs` | `20000` | per-server probe budget |
-| `probeConcurrency` | `4` | parallel probes |
-| `backupsToKeep` | `20` | retained backups per file |
+| `includeProjectScope` | `true` | 同时扫描工作区级文件 |
+| `probeTimeoutMs` | `20000` | 单个服务器探活预算 |
+| `probeConcurrency` | `4` | 并行探活数 |
+| `backupsToKeep` | `20` | 每个文件保留的备份数 |
 
-State (ledger + backups) lives in `<DSH_HOME>/mcp-manager/`.
+状态（台账 + 备份）位于 `<DSH_HOME>/mcp-manager/`。
 
-## Verified on this machine
+## 在本机验证过
 
-Eight of eighteen clients installed, 27 servers discovered across Qoder IDE,
-OpenCode, Trae, Trae CN and DSH. Context7 probes OK with 2 tools,
-`playwright_mcp` with 25. A DSH server mounted and unmounted through the page
-leaves `cordis.patch.yml` **byte-identical** to its pre-write hash, with the
-user's own provider, permission and agency entries untouched — and every other
-client configuration file keeps its hash through the same cycle.
+十八个客户端中装好了八个，跨 Qoder IDE、OpenCode、Trae、Trae CN 和 DSH 发现 27 个服务器。Context7 探活成功带 2 个工具，`playwright_mcp` 带 25 个。经页面挂载再卸载一个 DSH 服务器后，`cordis.patch.yml` 与写入前哈希**逐字节相同**，用户自己的 provider、permission、agency 条目原封不动 —— 同一循环中其他每个客户端配置文件也都保持哈希不变。
 
-Twenty-one plaintext credentials were found on disk — most in `env` maps and
-one in a command-line flag (`--figma-api-key` in Qoder's `mcp.json`). None of
-their literals appears anywhere in the state payload; the page shows only key
-names, and the write path refuses a masked value.
+磁盘上发现 21 处明文凭据 —— 多数在 `env` 映射里，一处在命令行参数里（Qoder `mcp.json` 的 `--figma-api-key`）。它们的字面值没有出现在 state 载荷的任何位置；页面只显示键名，写入路径拒绝被掩码的值。
 
-Twelve test suites under `scripts/` cover the editors, the path layer, the write
-path, the DSH adapter, the patch layer, the mount switch, the mount-name mapping
-for non-ASCII server names, redaction and the masked-write guard, plus an
-end-to-end pass that asserts no credential literal reaches the client payload:
+`scripts/` 下十三个测试套件覆盖编辑器、路径层、写入路径、DSH 适配器、补丁层、挂载开关、非 ASCII 服务器名的挂载名映射、脱敏与掩码写入防护、发布元数据一致性，外加一次端到端断言：没有任何凭据字面值进入客户端载荷。
 
 ```
 node scripts/test-surgical.mjs      17 passing
@@ -384,25 +209,20 @@ node scripts/test-client-load.mjs   28 passing
 node scripts/test-paths.mjs         16 passing
 node scripts/test-mount-name.mjs    12 passing
 node scripts/test-locale.mjs         en/zh key parity
+node scripts/test-release.mjs        11 passing
 ```
 
-## Known limits
+## 已知限制
 
-- **Install detection is file presence.** An installed tool with no MCP config
-  yet is indistinguishable from an absent one until its directory exists.
-- **A newly mounted DSH server relies on the Loader reconciling it.** The
-  operation waits up to 8 s for the row and reports `live: true`; if that window
-  expires it reports `activating: true` and the page re-reads the state a moment
-  later. No restart is ever demanded for a row the Loader can see.
-- **A row we did not write is switched off, not removed.** Deleting a definition
-  the user pasted would destroy their work, so such a row gets the same
-  `disabled: true` override the plugin manager writes, and stays in the file.
-- **Only DSH is switchable.** The other tools' files are read and written
-  explicitly, never toggled — see the section above.
-- **Continue is read-only** (YAML array shape); editing it is planned.
-- **Secrets are not migrated to a vault.** The plugin masks and warns; moving
-  credentials into `${env:...}` references stays the user's decision.
-- **The MCP registry is not consulted.** `registry.modelcontextprotocol.io` is
-  explicitly preview and not intended for direct host consumption, so server
-  discovery is by scanning local files only.
+- **安装检测靠文件存在性。** 装了但还没有 MCP 配置的工具，在目录出现之前与「没装」无法区分。
+- **新挂载的 DSH 服务器依赖 Loader 重排。** 操作最多等 8 秒并上报 `live: true`；窗口过期则上报 `activating: true`，页面稍后重新读取状态。对 Loader 看得见的行，永不索要重启。
+- **不是我们写的行只被关闭，不会被删除。** 删掉用户粘进去的定义等于毁掉他的工作，所以这样的行会得到与插件管理器相同的那种 `disabled: true` 覆盖项，并留在文件里。
+- **只有 DSH 可切换。** 其他工具的文件只被显式读写，从不切换 —— 见上文。
+- **Continue 只读**（YAML 数组形态）；编辑在计划中。
+- **凭据不会被迁移进保险库。** 插件只做掩码和告警；把凭据换成 `${env:...}` 引用仍是用户自己的决定。
+- **不查询 MCP 注册表。** `registry.modelcontextprotocol.io` 明确是预览态且不面向宿主直接消费，所以服务器发现只靠扫描本地文件。
+
+## 许可证
+
+MIT
 
