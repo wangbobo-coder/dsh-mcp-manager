@@ -10,11 +10,16 @@ Market).
 
 ## Install
 
-Install the bundle from the **Plugin Manager** page in Settings — from the npm
-registry, from this repository, or from the `dsh-mcp-manager.tgz` attached to the
+Install the bundle from the **Plugin Manager** page in Settings, or point
+`plugin_manager` at the npm package:
+
+```
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.0"
+```
+
+An absolute directory works as `target` too, which is how you install a local
+checkout or the `dsh-mcp-manager.tgz` attached to the
 [v0.1.0 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
-The agent-side equivalent is `plugin_manager` with `action: install_bundle` and
-the bundle's absolute directory as `target`.
 
 Do not `pnpm add` the package into the profile by hand, and do not edit the
 profile's `package.json` or `cordis.patch.yml`: installing a package is not the

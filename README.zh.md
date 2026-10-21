@@ -6,10 +6,15 @@
 
 ## 安装
 
-从设置的「插件管理」页安装 —— 可以从 npm 源装、从本仓库装，或者用
+从设置的「插件管理」页安装，或者让 `plugin_manager` 直接指向 npm 上的包：
+
+```
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.0"
+```
+
+`target` 也可以填一个绝对目录 —— 本地源码目录，或者
 [v0.1.0 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
-`dsh-mcp-manager.tgz`。agent 侧的等价写法是 `plugin_manager` 的 `action: install_bundle`，
-`target` 填 bundle 的绝对目录。
+`dsh-mcp-manager.tgz` 解出来的目录。
 
 不要手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
 `cordis.patch.yml`：装了包不等于选中了它的 bundle，手动装的后果是那一行存在但永远不会被挂载。
