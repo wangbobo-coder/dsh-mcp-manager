@@ -6,11 +6,15 @@
 
 ## 安装
 
-```bash
-dsh plugin install @oh-agent/dsh-mcp-manager
-```
+从设置的「插件管理」页安装 —— 可以从 npm 源装、从本仓库装，或者用
+[v0.1.0 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
+`dsh-mcp-manager.tgz`。agent 侧的等价写法是 `plugin_manager` 的 `action: install_bundle`，
+`target` 填 bundle 的绝对目录。
 
-也可以在设置的「插件管理」页里安装。安装后增加一个设置页和一个 agent 工具（`mcp_manage`）。它没有任何运行时依赖，不需要构建，也没有 `allowBuilds` 授权步骤。
+不要手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
+`cordis.patch.yml`：装了包不等于选中了它的 bundle，手动装的后果是那一行存在但永远不会被挂载。
+
+安装后增加一个设置页和一个 agent 工具（`mcp_manage`）。它没有任何运行时依赖，不需要构建，也没有 `allowBuilds` 授权步骤。
 
 页面会读取其他工具的配置文件，但**开关不需要对它们有写权限**。所有数据都不离开本机 —— 唯一的对外流量是你主动点的那次探活，且只发往你点的那一个服务器。
 

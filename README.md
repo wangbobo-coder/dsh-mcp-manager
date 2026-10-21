@@ -10,13 +10,20 @@ Market).
 
 ## Install
 
-```bash
-dsh plugin install @oh-agent/dsh-mcp-manager
-```
+Install the bundle from the **Plugin Manager** page in Settings — from the npm
+registry, from this repository, or from the `dsh-mcp-manager.tgz` attached to the
+[v0.1.0 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
+The agent-side equivalent is `plugin_manager` with `action: install_bundle` and
+the bundle's absolute directory as `target`.
 
-Or from the Plugin Manager page in Settings. Either way the bundle adds one
-settings tab and one agent tool (`mcp_manage`); it declares no runtime
-dependencies, so there is nothing to build and no `allowBuilds` step.
+Do not `pnpm add` the package into the profile by hand, and do not edit the
+profile's `package.json` or `cordis.patch.yml`: installing a package is not the
+same as selecting its bundle, so doing it manually leaves the row present but
+never mounted.
+
+Either way the bundle adds one settings tab and one agent tool (`mcp_manage`);
+it declares no runtime dependencies, so there is nothing to build and no
+`allowBuilds` step.
 
 The page reads other tools' configuration files but never needs write access to
 them for the switch. Nothing leaves the machine — the only outbound traffic is a
