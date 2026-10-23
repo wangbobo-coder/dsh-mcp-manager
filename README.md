@@ -17,11 +17,11 @@
 直接说「安装 @oh-agent/dsh-mcp-manager」，等价于：
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.2"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.3"
 ```
 
 `target` 也可以填一个绝对目录 —— 本地源码目录，或者
-[v0.1.2 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
+[v0.1.3 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
 `dsh-mcp-manager.tgz` 解出来的目录。
 
 **不要**手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
@@ -147,9 +147,9 @@ client.js  (设置页)                 index.js  (宿主入口)
 
 ### 挂载名不总是显示名
 
-`@deepseek-ai/dsh-mcp-client` 要求 `serverName` 匹配 `/^[A-Za-z0-9_-]{1,32}$/`。现实中很多服务器不满足 —— 这台机器上有十几个叫 `表单管理系统 - API 文档` 之类，`Figma AI Bridge` 带空格。只用 `sanitizeName` 压一遍，所有中文名都会变成 `API`，第二个挂载就会和第一个撞名，开关就会翻错服务器。
+`@deepseek-ai/dsh-mcp-client` 要求 `serverName` 匹配 `/^[A-Za-z0-9_-]{1,32}$/`。现实中很多服务器不满足 —— 大量中文名形如 `示例服务器 - API 文档`，也有带空格的英文名形如 `My Bridge`。只用 `sanitizeName` 压一遍，所有中文名都会变成 `API`，第二个挂载就会和第一个撞名，开关就会翻错服务器。
 
-因此 `canonical.js` 导出 `dshMountName(name)`：先 sanitize，如果结果丢了信息（中日韩字符、空格、超长），就追加原名的短哈希 —— `表单管理系统 - API 文档` → `API-c2f500c4`，`Figma AI Bridge` → `Figma-AI-Bridge`。它是纯函数且全域的，所以写入路径、扫描、开关、移除都从同一输入算出同一字符串，不需要在任何地方存映射表。
+因此 `canonical.js` 导出 `dshMountName(name)`：先 sanitize，如果结果丢了信息（中日韩字符、空格、超长），就追加原名的短哈希 —— `示例服务器 - API 文档` → `API-0aac0ee2`，`My Bridge` → `My-Bridge`。它是纯函数且全域的，所以写入路径、扫描、开关、移除都从同一输入算出同一字符串，不需要在任何地方存映射表。
 
 扫描和页面处理的后果：
 

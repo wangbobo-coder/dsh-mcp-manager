@@ -16,12 +16,12 @@ Install the bundle from the **Plugin Manager** page in Settings, or point
 `plugin_manager` at the npm package:
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.2"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.3"
 ```
 
 An absolute directory works as `target` too, which is how you install a local
 checkout or the `dsh-mcp-manager.tgz` attached to the
-[v0.1.2 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
+[v0.1.3 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
 
 Do not `pnpm add` the package into the profile by hand, and do not edit the
 profile's `package.json` or `cordis.patch.yml`: installing a package is not the
@@ -237,16 +237,16 @@ wrote is removed rather than disabled, a full mount → unmount cycle returns
 ### A mount name is not always the display name
 
 `@deepseek-ai/dsh-mcp-client` requires `serverName` to match
-`/^[A-Za-z0-9_-]{1,32}$/`. Many real servers do not — this machine has a dozen
-named `表单管理系统 - API 文档` and friends, and `Figma AI Bridge` has a space.
+`/^[A-Za-z0-9_-]{1,32}$/`. Many real servers do not — Chinese names commonly look
+like `示例服务器 - API 文档`, and an English name like `My Bridge` carries a space.
 Squeezing those through `sanitizeName` alone gives `API` for every Chinese name,
 so a second mount would collide with the first and the switch would flip the wrong
 server.
 
 `canonical.js` therefore exports `dshMountName(name)`: sanitize, and if the result
 lost information (CJK characters, spaces, over-length) append a short hash of the
-original — `表单管理系统 - API 文档` → `API-c2f500c4`, `Figma AI Bridge` →
-`Figma-AI-Bridge`. It is pure and total, so the write path, the scan, the toggle
+original — `示例服务器 - API 文档` → `API-0aac0ee2`, `My Bridge` →
+`My-Bridge`. It is pure and total, so the write path, the scan, the toggle
 and the removal all compute the same string from the same input without storing a
 mapping anywhere.
 

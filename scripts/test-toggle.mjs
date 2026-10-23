@@ -10,7 +10,7 @@
  */
 import { mkdtempSync, readFileSync, mkdirSync, existsSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import { toggleServer } from '../lib/toggle.js';
 import { readDshPatchServers, writeDshPatchServer, removeDshPatchServer, splitPatchItems } from '../lib/dsh-patch.js';
 import { createStore } from '../lib/store.js';
@@ -61,19 +61,24 @@ function stripMcpRows(raw) {
   return raw;
 }
 
-const REAL = process.env.MCPM_REAL_PATCH ?? 'C:/Users/wangs/.dsh/profiles/desktop/cordis.patch.yml';
+/*
+ * Seed the fixture from a real profile when one is reachable, so the "user
+ * entries survive" checks run against genuine content — but normalise our own
+ * rows out first. Without that strip the suite is not hermetic: a leftover
+ * mount row from an earlier live test makes the byte-identical assertions fail
+ * for a reason that has nothing to do with the code under test.
+ *
+ * The location is derived from the environment rather than hard-coded, and
+ * this file is read-only here: it is never written back.
+ */
+const REAL =
+  process.env.MCPM_REAL_PATCH ??
+  join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'profiles', process.env.DSH_PROFILE ?? 'desktop', 'cordis.patch.yml');
 const root = mkdtempSync(join(tmpdir(), 'mcpm-toggle-'));
 const profileDir = join(root, 'profile');
 mkdirSync(profileDir, { recursive: true });
 const patchPath = join(profileDir, 'cordis.patch.yml');
 const hasReal = existsSync(REAL);
-/*
- * Seed the fixture from the real profile so the "user entries survive" checks
- * run against 13KB of genuine content — but normalise our own rows out first.
- * Without that strip the suite is not hermetic: a leftover mount row from an
- * earlier live test makes the byte-identical assertions fail for a reason that
- * has nothing to do with the code under test.
- */
 const original = hasReal ? stripMcpRows(readFileSync(REAL, 'utf8')) : '- id: other\n  name: x\n';
 writeFileSync(patchPath, original, 'utf8');
 const store = createStore({ root: join(root, 'state') });

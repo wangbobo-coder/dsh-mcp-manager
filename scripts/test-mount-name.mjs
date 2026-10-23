@@ -2,7 +2,7 @@
  * The mount-name mapping, end to end.
  *
  * The harness's `@deepseek-ai/dsh-mcp-client` accepts only `[A-Za-z0-9_-]{1,32}`
- * as `serverName`, so a name like `表单管理系统 - API 文档` has to be mapped before
+ * as `serverName`, so a name like `示例服务器 - API 文档` has to be mapped before
  * it can be mounted. That mapping is where two visible bugs lived:
  *
  *   - `sanitizeName` alone collapsed EVERY CJK name to `API` (the only ASCII
@@ -43,12 +43,12 @@ await check('an already-valid name is returned untouched', () => {
 });
 
 await check('an ascii name keeps the readable sanitized form', () => {
-  assert.equal(dshMountName('Figma AI Bridge'), 'Figma-AI-Bridge');
+  assert.equal(dshMountName('My Bridge'), 'My-Bridge');
   assert.equal(dshMountName('my server!'), 'my-server');
 });
 
 await check('three CJK names that sanitizeName collapses get distinct mount names', () => {
-  const display = ['表单管理系统 - API 文档', '方案生成助手 - API 文档', '心理健康关爱系统 - API 文档'];
+  const display = ['示例服务器 - API 文档', '示例助手 - API 文档', '另一个服务 - API 文档'];
   /* Pin the bug being fixed: the OLD mapping sent all three to the same name. */
   assert.equal(new Set(display.map((name) => sanitizeName(name))).size, 1, 'precondition: sanitizeName collides here');
   const mounts = display.map((name) => dshMountName(name));
@@ -56,7 +56,7 @@ await check('three CJK names that sanitizeName collapses get distinct mount name
 });
 
 await check('every mount name satisfies the harness schema', () => {
-  const inputs = ['表单管理系统 - API 文档', '完全中文名', 'a'.repeat(60), 'my server!', '', 'emoji 🚀 server', 'context7'];
+  const inputs = ['示例服务器 - API 文档', '完全中文名', 'a'.repeat(60), 'my server!', '', 'emoji 🚀 server', 'context7'];
   for (const input of inputs) {
     const mount = dshMountName(input);
     assert(SERVER_NAME_RE.test(mount), `${JSON.stringify(input)} -> ${JSON.stringify(mount)} is not a legal serverName`);
@@ -64,7 +64,7 @@ await check('every mount name satisfies the harness schema', () => {
 });
 
 await check('the mapping is deterministic, so a repeat apply updates instead of duplicating', () => {
-  assert.equal(dshMountName('表单管理系统 - API 文档'), dshMountName('表单管理系统 - API 文档'));
+  assert.equal(dshMountName('示例服务器 - API 文档'), dshMountName('示例服务器 - API 文档'));
 });
 
 await check('a fully-CJK name does not fall back to the constant "server"', () => {
@@ -75,7 +75,7 @@ await check('a fully-CJK name does not fall back to the constant "server"', () =
 
 console.log('the scan fold');
 
-const CJK = '表单管理系统 - API 文档';
+const CJK = '示例服务器 - API 文档';
 
 /**
  * A store that serves one Qoder config declaring `CJK`.
@@ -156,9 +156,9 @@ await check('the ledger display name folds a mount whose client config is gone',
 });
 
 await check('an ascii mount name is folded back too, so the switch state is the same everywhere', () => {
-  const display = 'Figma AI Bridge';
+  const display = 'My Bridge';
   const state = scanAll({ store: storeServing(display), configEditor: editorWith([mountRow(display)]), projectRoots: [], reveal: false, profileDir: 'C:/nonexistent' });
-  assert.equal(dshMountName(display), 'Figma-AI-Bridge', 'the ascii name keeps its readable form');
+  assert.equal(dshMountName(display), 'My-Bridge', 'the ascii name keeps its readable form');
   const node = state.servers.find((item) => item.name === display);
   assert(node, `expected the display name, got ${JSON.stringify(state.servers.map((item) => item.name))}`);
   assert(node.targets.some((target) => target.clientId === 'dsh'), 'its switch state must be the mounted one');

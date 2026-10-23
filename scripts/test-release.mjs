@@ -70,10 +70,10 @@ check('the README default language is Chinese, with a switch to English', () => 
   const en = read('README.en.md');
   ok(en.includes('[中文](README.md)'), 'README.en.md does not link back to the Chinese page');
   // Chinese is allowed only where it is the subject: the switch label, and the
-  // real server names the mount-name section has to quote to make its point.
+  // placeholder server names the mount-name section quotes to make its point.
   const prose = en
     .split('\n')
-    .filter((line) => !line.includes('中文') && !line.includes('表单管理系统'))
+    .filter((line) => !line.includes('中文') && !line.includes('示例服务器'))
     .join('\n');
   ok(!/[\u4e00-\u9fff]/.test(prose), 'README.en.md still carries Chinese prose');
 
