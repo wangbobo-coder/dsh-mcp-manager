@@ -4,8 +4,9 @@ English · [中文](README.md)
 
 Management page for the MCP servers scattered across every local AI development
 tool — one card per configuration file showing what it declares, one switch per
-server that mounts it in DeepSeek Harness, and one probe of what actually
-answers.
+server that mounts it in DeepSeek Harness, one probe of what actually answers,
+and, more importantly, a straight answer to whether it **really loaded** in the
+harness, with a retry button when it did not.
 
 DeepSeek Harness → **Settings → MCP Manager** (between Skills Manager and
 Market).
@@ -16,12 +17,12 @@ Install the bundle from the **Plugin Manager** page in Settings, or point
 `plugin_manager` at the npm package:
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.3"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.4"
 ```
 
 An absolute directory works as `target` too, which is how you install a local
 checkout or the `dsh-mcp-manager.tgz` attached to the
-[v0.1.3 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
+[v0.1.4 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
 
 Do not `pnpm add` the package into the profile by hand, and do not edit the
 profile's `package.json` or `cordis.patch.yml`: installing a package is not the
@@ -234,6 +235,47 @@ Because the override is a separate item and not a rewrite, and because a row we
 wrote is removed rather than disabled, a full mount → unmount cycle returns
 `cordis.patch.yml` to its exact previous bytes.
 
+### Mounted is not loaded
+
+This is the field most likely to lie. A row existing in `cordis.patch.yml` proves
+only that it was **mounted**; it says nothing about whether `npx` started or the
+handshake succeeded.
+
+`@deepseek-ai/dsh-mcp-client` ships `failOnStartupError: false` by default, which
+buries the failure: `apply()` awaits `connection.ready` and, on error, simply
+returns instead of throwing. So the row's `fiberPhase` in the Plugin Manager
+stays `active` — every indicator is green and there are still no tools. Switch
+Node to 14 and start the harness and this is exactly what you get: the old Node
+runtime cannot run a modern MCP server, the process exits immediately, and
+nothing in the UI reports anything wrong.
+
+So this plugin ignores `fiberPhase` and reads the **tool registry** instead. A
+server that connected successfully necessarily registered tools named
+`mcp__<serverName>__<tool>`. Some are present → `loaded`; none are → `failed`.
+That is the part that tells the truth.
+
+| What the page shows | What it means |
+| --- | --- |
+| `loaded · N tools` | Connection succeeded, tools registered, the agent can call them now |
+| `mounted but failed to load` + Retry | The row is mounted but no tool registered — the process never started, or the handshake failed |
+| `activating` | The patch row was just written; the Loader has not recomposed yet |
+| `load state unknown` | The tool registry cannot be read (older host) — **no conclusion is drawn**, and it is never reported as a failure |
+
+Reporting "unknown" rather than "failed" when the registry is unavailable is
+deliberate: marking a healthy server as broken is worse than marking nothing.
+
+Retry goes through `hmr.reconcileProfile([entryId])`, serialized inside
+`hmr.runExclusive`. That makes the Loader re-import the rows that failed and
+judge activation. Backoff retries after a failed connection are the mcp-client's
+own business, but once it gives up it registers nothing and waits for a reload
+that a settings page cannot deliver — so the reload has to come from us.
+Reconnecting is not instant (process spawn plus handshake), so the page re-reads
+state 2.5 seconds after the button is pressed.
+
+`scripts/test-load.mjs` pins this down, mostly the boundary between `unknown`,
+`failed` and `loaded`, plus the name matching that decides which tools belong to
+which server.
+
 ### A mount name is not always the display name
 
 `@deepseek-ai/dsh-mcp-client` requires `serverName` to match
@@ -265,18 +307,18 @@ the round trip through scan.
 ## Using it
 
 The page is laid out like the skills page it sits next to: a title row with the
-actions, a four-cell summary strip (servers · files · mounted in DSH · literal
-credentials), a filter row, then one bordered card per config file.
+actions, a five-cell summary strip (servers · files · mounted in DSH · loaded ·
+literal credentials), a filter row, then one bordered card per config file.
 
 Each card lists the servers that file declares — headed by the tool name, the
 server count and the path (shortened to `%APPDATA%\…` style, full path in the
 tooltip). A card collapses; while a filter is active every card opens, because a
 match hidden inside a collapsed card reads as "no results". Every row shows the
-transport, the command or URL, how many tools share the definition, its probe
-result, and the mount switch.
+transport, the command or URL, its **load state**, how many tools share the
+definition, its probe result, and the mount switch.
 
 The filters are a free-text search (name, command, path) plus two selects: by
-tool, and by mount state (mounted / not mounted).
+tool, and by state (mounted / not mounted / **mounted but failed to load**).
 
 Clicking a row opens a dialog rather than expanding it in place — inline
 expansion reflows every row below and made the card look like two stacked cards.
@@ -288,7 +330,7 @@ The same operations are exposed to the agent as the `mcp_manage` tool, so the
 page and the agent share one implementation and cannot diverge:
 
 ```
-action: scan | probe | toggle | apply | remove | sync | snippet | reveal | history
+action: scan | probe | retry | toggle | apply | remove | sync | snippet | reveal | history
 ```
 
 ## Configuration
@@ -318,10 +360,11 @@ one in a command-line flag (`--figma-api-key` in Qoder's `mcp.json`). None of
 their literals appears anywhere in the state payload; the page shows only key
 names, and the write path refuses a masked value.
 
-Thirteen test suites under `scripts/` cover the editors, the path layer, the write
-path, the DSH adapter, the patch layer, the mount switch, the mount-name mapping
-for non-ASCII server names, redaction and the masked-write guard, plus an
-end-to-end pass that asserts no credential literal reaches the client payload:
+Fourteen test suites under `scripts/` cover the editors, the path layer, the write
+path, the DSH adapter, the patch layer, the mount switch, runtime load-state
+detection, the mount-name mapping for non-ASCII server names, redaction and the
+masked-write guard, plus an end-to-end pass that asserts no credential literal
+reaches the client payload:
 
 ```
 node scripts/test-surgical.mjs      17 passing
@@ -330,6 +373,7 @@ node scripts/test-dsh.mjs           16 passing
 node scripts/test-dsh-patch.mjs     15 passing
 node scripts/test-dsh-e2e.mjs        8 passing
 node scripts/test-toggle.mjs        16 passing
+node scripts/test-load.mjs          15 passing
 node scripts/test-redact.mjs        14 passing
 node scripts/test-masked-write.mjs   5 passing
 node scripts/test-client-load.mjs   28 passing
@@ -352,6 +396,12 @@ node scripts/test-release.mjs        11 passing
   `disabled: true` override the plugin manager writes, and stays in the file.
 - **Only DSH is switchable.** The other tools' files are read and written
   explicitly, never toggled — see the section above.
+- **Load state only covers DSH's own connections.** Whether a server in another
+  tool actually starts is knowable only by pressing probe; those tools are not in
+  this harness's tool registry and there is nowhere else to read it from.
+- **A server with no tools is reported as a failed load.** The judgement is the
+  tool registry, so a connection that succeeds but exposes zero tools looks the
+  same as one that never connected. Such servers are rare, but they exist.
 - **Continue is read-only** (YAML array shape); editing it is planned.
 - **Secrets are not migrated to a vault.** The plugin masks and warns; moving
   credentials into `${env:...}` references stays the user's decision.

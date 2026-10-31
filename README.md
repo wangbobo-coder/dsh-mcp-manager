@@ -2,7 +2,7 @@
 
 **中文** · [English](README.en.md)
 
-一个设置页，管理散落在本机各个 AI 开发工具里的 MCP 服务器 —— 每个配置文件一张卡片，显示它声明了什么；每个服务器一个开关，把它挂载进 DeepSeek Harness；再加一次真连探活，看它到底能不能起来。
+一个设置页，管理散落在本机各个 AI 开发工具里的 MCP 服务器 —— 每个配置文件一张卡片，显示它声明了什么；每个服务器一个开关，把它挂载进 DeepSeek Harness；再加一次真连探活，看它到底能不能起来；更重要的是，页面直接告诉你它在 Harness 里**到底加载成功没有**，失败了可以就地重试。
 
 入口：DeepSeek Harness → **设置 → MCP**（位于「技能管理」和「插件市场」之间）。
 
@@ -17,11 +17,11 @@
 直接说「安装 @oh-agent/dsh-mcp-manager」，等价于：
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.3"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.4"
 ```
 
 `target` 也可以填一个绝对目录 —— 本地源码目录，或者
-[v0.1.3 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
+[v0.1.4 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
 `dsh-mcp-manager.tgz` 解出来的目录。
 
 **不要**手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
@@ -145,6 +145,27 @@ client.js  (设置页)                 index.js  (宿主入口)
 
 因为覆盖项是独立的一项而不是重写，且我们自己写的行是删除而不是禁用，一次完整的挂载 → 卸载循环会把 `cordis.patch.yml` 还原到精确的原始字节。
 
+### 挂上了 ≠ 加载成功了
+
+这是最容易撒谎的一格。行存在于 `cordis.patch.yml` 里，只证明它**被挂载**了；它一点都不能证明 `npx` 起没起来、握手成没成功。
+
+`@deepseek-ai/dsh-mcp-client` 的默认 `failOnStartupError: false` 让这件事更隐蔽：`apply()` 会等 `connection.ready`，连接失败时**只是返回**，不抛错。于是插件管理页里那一行的 `fiberPhase` 照样是 `active` —— 你看到的每一项都是绿的，工具却一个都没有。把 Node 切到 14 再启动 DSH 就是这个现象：老 Node 跑不了新语法的 MCP 服务器，进程立刻退出，界面上却什么异常都没有。
+
+所以本插件不看 `fiberPhase`，改看**工具注册表**：一个连接成功的 MCP 服务器，必然在 `tools` 里注册了 `mcp__<serverName>__<工具名>` 形式的工具。有就是 `loaded`，一条都没有就是 `failed`，这才是真话。
+
+| 页面显示 | 含义 |
+| --- | --- |
+| `已加载 · N 个工具` | 连接成功，工具已注册，agent 现在就能调 |
+| `已挂载但加载失败` + 「重试」 | 行挂上了，但一个工具都没注册 —— 进程没起来或握手失败 |
+| `正在激活` | 刚写完补丁行，Loader 还没重排完 |
+| `加载状态未知` | 读不到工具注册表（老版本宿主），此时**不下结论**，绝不误判成失败 |
+
+拿不到注册表时宁可显示「未知」也不显示「失败」：把一台健康的服务器标成坏的，比不标更糟。
+
+「重试」走的是 `hmr.reconcileProfile([entryId])`（在 `hmr.runExclusive` 里串行执行），它会让 Loader 重新导入那些失败的行并判定激活结果 —— 连接失败之后的退避重试是 mcp-client 自己的事，可它一旦放弃就什么都不注册、只等一次重载，而设置页给不了这次重载，所以必须由我们来触发。重连不是瞬时的（起进程 + 握手），因此按钮点完 2.5 秒后页面会自己再读一次状态。
+
+`scripts/test-load.mjs` 钉住了这套判定，重点是 `unknown` / `failed` / `loaded` 三者的边界，以及按名字归属工具时不能张冠李戴。
+
 ### 挂载名不总是显示名
 
 `@deepseek-ai/dsh-mcp-client` 要求 `serverName` 匹配 `/^[A-Za-z0-9_-]{1,32}$/`。现实中很多服务器不满足 —— 大量中文名形如 `示例服务器 - API 文档`，也有带空格的英文名形如 `My Bridge`。只用 `sanitizeName` 压一遍，所有中文名都会变成 `API`，第二个挂载就会和第一个撞名，开关就会翻错服务器。
@@ -161,18 +182,18 @@ client.js  (设置页)                 index.js  (宿主入口)
 
 ## 怎么用
 
-页面布局和它旁边的技能页一致：标题行加操作按钮，四格汇总条（服务器 · 文件 · 已挂载进 DSH · 字面凭据），筛选行，然后每个配置文件一张带边框的卡片。
+页面布局和它旁边的技能页一致：标题行加操作按钮，五格汇总条（服务器 · 文件 · 已挂载进 DSH · 已加载 · 字面凭据），筛选行，然后每个配置文件一张带边框的卡片。
 
-每张卡片列出该文件声明的服务器 —— 头部是工具名、服务器数量和路径（缩短成 `%APPDATA%\…` 风格，完整路径在 tooltip 里）。卡片可折叠；筛选生效时所有卡片都会展开，因为藏在折叠卡片里的命中会被读成「没有结果」。每行显示传输方式、命令或 URL、有多少工具共用这份定义、探活结果，以及挂载开关。
+每张卡片列出该文件声明的服务器 —— 头部是工具名、服务器数量和路径（缩短成 `%APPDATA%\…` 风格，完整路径在 tooltip 里）。卡片可折叠；筛选生效时所有卡片都会展开，因为藏在折叠卡片里的命中会被读成「没有结果」。每行显示传输方式、命令或 URL、**加载状态**、有多少工具共用这份定义、探活结果，以及挂载开关。
 
-筛选是一个自由文本搜索（名字、命令、路径）加两个下拉：按工具、按挂载状态（已挂载 / 未挂载）。
+筛选是一个自由文本搜索（名字、命令、路径）加两个下拉：按工具、按状态（已挂载 / 未挂载 / **已挂载但加载失败**）。
 
 点击一行打开对话框，而不是在原地展开 —— 原地展开会把它下面每一行都重排，让一张卡片看起来像两张叠在一起。对话框列出声明该服务器的每个文件、统一后的定义、一条可直接粘贴进 cordis 组合的 YAML 行，以及「复制到…」用于把定义推到别的工具。
 
 同一批操作也以 `mcp_manage` 工具暴露给 agent，所以页面和 agent 共用一份实现，不可能走岔：
 
 ```
-action: scan | probe | toggle | apply | remove | sync | snippet | reveal | history
+action: scan | probe | retry | toggle | apply | remove | sync | snippet | reveal | history
 ```
 
 ## 配置
@@ -194,7 +215,7 @@ action: scan | probe | toggle | apply | remove | sync | snippet | reveal | histo
 
 磁盘上发现 21 处明文凭据 —— 多数在 `env` 映射里，一处在命令行参数里（Qoder `mcp.json` 的 `--figma-api-key`）。它们的字面值没有出现在 state 载荷的任何位置；页面只显示键名，写入路径拒绝被掩码的值。
 
-`scripts/` 下十三个测试套件覆盖编辑器、路径层、写入路径、DSH 适配器、补丁层、挂载开关、非 ASCII 服务器名的挂载名映射、脱敏与掩码写入防护、发布元数据一致性，外加一次端到端断言：没有任何凭据字面值进入客户端载荷。
+`scripts/` 下十四个测试套件覆盖编辑器、路径层、写入路径、DSH 适配器、补丁层、挂载开关、运行时加载状态判定、非 ASCII 服务器名的挂载名映射、脱敏与掩码写入防护、发布元数据一致性，外加一次端到端断言：没有任何凭据字面值进入客户端载荷。
 
 ```
 node scripts/test-surgical.mjs      17 passing
@@ -203,6 +224,7 @@ node scripts/test-dsh.mjs           16 passing
 node scripts/test-dsh-patch.mjs     15 passing
 node scripts/test-dsh-e2e.mjs        8 passing
 node scripts/test-toggle.mjs        16 passing
+node scripts/test-load.mjs          15 passing
 node scripts/test-redact.mjs        14 passing
 node scripts/test-masked-write.mjs   5 passing
 node scripts/test-client-load.mjs   28 passing
@@ -218,6 +240,8 @@ node scripts/test-release.mjs        11 passing
 - **新挂载的 DSH 服务器依赖 Loader 重排。** 操作最多等 8 秒并上报 `live: true`；窗口过期则上报 `activating: true`，页面稍后重新读取状态。对 Loader 看得见的行，永不索要重启。
 - **不是我们写的行只被关闭，不会被删除。** 删掉用户粘进去的定义等于毁掉他的工作，所以这样的行会得到与插件管理器相同的那种 `disabled: true` 覆盖项，并留在文件里。
 - **只有 DSH 可切换。** 其他工具的文件只被显式读写，从不切换 —— 见上文。
+- **加载状态只能看见 DSH 自己的连接。** 别的工具的服务器有没有真正跑起来，只有点「探活」才知道；它们不在这个 Harness 的工具注册表里，没别的地方能读到。
+- **没有工具的服务会被报成「加载失败」。** 判定依据是工具注册表，所以一个连接完全成功、但本身不提供任何工具的服务器，看起来和连不上是一样的。这种服务器很少，但确实存在。
 - **Continue 只读**（YAML 数组形态）；编辑在计划中。
 - **凭据不会被迁移进保险库。** 插件只做掩码和告警；把凭据换成 `${env:...}` 引用仍是用户自己的决定。
 - **不查询 MCP 注册表。** `registry.modelcontextprotocol.io` 明确是预览态且不面向宿主直接消费，所以服务器发现只靠扫描本地文件。

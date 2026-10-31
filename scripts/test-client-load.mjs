@@ -335,15 +335,18 @@ check('a server declared in two tools is labelled as shared', () => {
   assert(tags.some((text) => text.includes('2')), `expected a shared-in-2-tools tag, got ${JSON.stringify(tags)}`);
 });
 
-check('the summary strip totals servers, files and mounted count', () => {
+check('the summary strip totals servers, files, mounted count and loaded count', () => {
   const tree = render(SNAPSHOT);
   const stats = findByClass(tree, 'mcpm-stat');
-  assert.equal(stats.length, 4, 'four summary figures');
+  assert.equal(stats.length, 5, 'five summary figures');
   const values = stats.map((stat) => String(stat.children[0].children.join('')));
   assert.equal(values[0], '2', 'servers');
   assert.equal(values[1], '2', 'files');
   assert.equal(values[2], '1', 'mounted');
-  assert.equal(values[3], '1', 'literal credentials');
+  /* No registry in this fixture, so the loaded figure must decline to guess
+     rather than claim the mounted server failed. */
+  assert.equal(values[3], '—', 'loaded is unknown without a registry');
+  assert.equal(values[4], '1', 'literal credentials');
 });
 
 check('a literal credential produces a banner', () => {
