@@ -486,5 +486,55 @@ check('row descriptors never carry a raw absolute path in the visible line', () 
   }
 });
 
+/*
+ * A mounted row whose connection failed is the case the whole load-status
+ * feature exists for, so it gets a state of its own rather than a fixture tweak.
+ */
+const FAILED = {
+  ...SNAPSHOT,
+  loadSummary: { mounted: 1, loaded: 0, failed: 1, off: 0, pending: 0, unknown: 0, registry: true },
+  servers: [
+    {
+      ...SNAPSHOT.servers[0],
+      load: { mountName: 'context7', status: 'failed', toolCount: 0, registry: true },
+      targets: [
+        { ...SNAPSHOT.servers[0].targets[0], load: { mountName: 'context7', status: 'failed', toolCount: 0, registry: true } },
+        SNAPSHOT.servers[0].targets[1],
+      ],
+    },
+    SNAPSHOT.servers[1],
+  ],
+};
+
+check('a failed connection gets its own banner with a retry-all action', () => {
+  const tree = render(FAILED);
+  const banner = findByClass(tree, 'mcpm-banner-row');
+  assert.equal(banner.length, 1, 'exactly one failure banner, whatever else is wrong');
+  const text = JSON.stringify(banner[0]);
+  assert(text.includes('1 server(s) are mounted'), `the banner must say how many failed: ${text}`);
+  assert(text.includes('Retry all'), 'the banner offers a bulk retry instead of making the user hunt rows');
+});
+
+check('a failed row carries the inline retry button next to its status', () => {
+  const tree = render(FAILED);
+  const tags = [];
+  walk(tree, (node) => {
+    if (node.props && node.props.className === 'mcpm-tag err') tags.push(node);
+  });
+  /*
+   * One tag per ROW, not per server: context7 is declared in two files, and both
+   * rows must show the failure, because that is where the user looks.
+   */
+  assert.equal(tags.length, 2, 'every row of the failed server is tagged as failed');
+  for (const tag of tags) assert.equal(tag.children.join(''), 'failed to load', 'the tag says what happened, not just "error"');
+  const retry = findByClass(tree, 'mcpm-btn').filter((node) => node.children.join('') === 'Retry');
+  assert.equal(retry.length, 2, 'each failed row carries its own retry button');
+});
+
+check('a healthy page shows no failure banner', () => {
+  const tree = render(SNAPSHOT);
+  assert.equal(findByClass(tree, 'mcpm-banner-row').length, 0, 'nothing failed, so nothing to retry');
+});
+
 console.log(`\n${passing} passing${failures.length ? `, ${failures.length} failing` : ''}`);
 if (failures.length) process.exitCode = 1;

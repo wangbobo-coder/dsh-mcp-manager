@@ -17,12 +17,12 @@ Install the bundle from the **Plugin Manager** page in Settings, or point
 `plugin_manager` at the npm package:
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.4"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.5"
 ```
 
 An absolute directory works as `target` too, which is how you install a local
 checkout or the `dsh-mcp-manager.tgz` attached to the
-[v0.1.4 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
+[v0.1.5 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
 
 Do not `pnpm add` the package into the profile by hand, and do not edit the
 profile's `package.json` or `cordis.patch.yml`: installing a package is not the
@@ -219,10 +219,23 @@ How the mount works, by case:
 
 | the server is | the switch does | takes effect |
 | --- | --- | --- |
-| an `- insert:` item we wrote | deletes the item on off, rewrites it on on | on reconcile; the file returns to its exact previous bytes |
 | already a live `dsh-mcp-client` row | `pluginManager.setPluginEnabled(rowId, …)` | instantly — the row unmounts and its tools leave the tool list |
+| an `- insert:` item we wrote | deletes the item on off, rewrites it on on | on reconcile; the file returns to its exact previous bytes |
 | an `- insert:` item the user wrote | appends/removes the same `- id: …` / `disabled: true` override the plugin manager itself writes | on reconcile |
 | declared in another tool only, and switched on | writes a new `- insert:` row | live as soon as the Loader reconciles it (usually 1–4 s); the operation waits up to 8 s and reports `live: true`, else `activating: true` |
+
+The order matters, and it cost a real bug: **the Loader path must come before any
+file edit**. The first row and the rows below it overlap — an `- insert:` item we
+wrote ourselves is, once the Loader has read it, a live entry. An earlier version
+checked "is this row ours?" first and deleted the YAML row, so switching one off
+edited a file that needs a reconcile instead of hot-disposing the running
+instance; worse, switching it back on appended the block to the end of
+`cordis.patch.yml`, so the user's careful ordering was destroyed. Measured once:
+a 15,640-byte file changed SHA and the `mcp-playwright` block moved from the
+middle to the end after a single toggle round. It now tries the Loader first and
+only falls back to the file when no such entry exists at all;
+`scripts/test-toggle.mjs` pins this with "the patch file's bytes are identical
+after a toggle round".
 | not mounted anywhere, and switched off | nothing — already true, no dangling override | — |
 
 Our own row is removed before the Loader path is tried: the plugin manager can
@@ -258,23 +271,49 @@ That is the part that tells the truth.
 | --- | --- |
 | `loaded · N tools` | Connection succeeded, tools registered, the agent can call them now |
 | `mounted but failed to load` + Retry | The row is mounted but no tool registered — the process never started, or the handshake failed |
+| a red banner at the top + Retry all | N mounted servers cannot connect; retry every failed one in a single action |
 | `activating` | The patch row was just written; the Loader has not recomposed yet |
 | `load state unknown` | The tool registry cannot be read (older host) — **no conclusion is drawn**, and it is never reported as a failure |
 
 Reporting "unknown" rather than "failed" when the registry is unavailable is
-deliberate: marking a healthy server as broken is worse than marking nothing.
+deliberate: marking a healthy server as broken is worse than marking nothing. The
+red banner follows the same rule and only appears when the registry is readable —
+otherwise every row reads `unknown`, and calling that a failure would be a guess.
 
-Retry goes through `hmr.reconcileProfile([entryId])`, serialized inside
-`hmr.runExclusive`. That makes the Loader re-import the rows that failed and
-judge activation. Backoff retries after a failed connection are the mcp-client's
-own business, but once it gives up it registers nothing and waits for a reload
-that a settings page cannot deliver — so the reload has to come from us.
-Reconnecting is not instant (process spawn plus handshake), so the page re-reads
-state 2.5 seconds after the button is pressed.
+Retry is **not** `hmr.reconcileProfile`. That looks like the right lever and is a
+no-op: it only restarts entries that are **inactive**, while
+`@deepseek-ai/dsh-mcp-client` swallows the connect error under
+`failOnStartupError: false` and leaves the fiber **active**. Measured against a
+dead row: `reconcileProfile` returned success and rebuilt nothing — a retry button
+that lies.
 
-`scripts/test-load.mjs` pins this down, mostly the boundary between `unknown`,
+The lever that works is `pluginManager.setPluginEnabled(entryId, false)` followed
+by `(entryId, true)`: dispose the dead fiber, then mount it again from scratch.
+Hence three steps:
+
+1. `setPluginEnabled(entryId, false)` tears the old connection down. If that call
+   itself fails, report `could not dispose the stale connection: <code>` — never
+   pretend a retry happened;
+2. `setPluginEnabled(entryId, true)` rebuilds it. If it throws, best-effort
+   re-enable, because leaving a server switched off is worse than a retry that
+   did not help;
+3. poll the tool registry (`mcp__<mountName>__*`) until tools appear or the
+   budget runs out. **The verdict comes from the registry, not the composition**:
+   a rebuilt fiber shows up in the composition instantly, but only registered
+   tools prove the connection is real.
+
+Polling the registry rather than the fiber is the whole point: `active` only says
+"this plugin is loaded", and it stays active when the connection is dead — that is
+exactly why the page used to say "mounted" while nothing worked. Reconnecting is
+not instant (process spawn plus handshake), so the page re-reads state 2.5 seconds
+after the button is pressed, and a retry that still finds no tools reports the
+host's own reason instead of a generic "something went wrong".
+
+`scripts/test-load.mjs` pins the verdicts down (the boundary between `unknown`,
 `failed` and `loaded`, plus the name matching that decides which tools belong to
-which server.
+which server), and `scripts/test-retry.mjs` pins the retry itself: exactly one
+disable followed by one enable, the host's reason surfaced verbatim, and a failed
+rebuild must not leave the row switched off.
 
 ### A mount name is not always the display name
 

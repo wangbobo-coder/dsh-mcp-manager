@@ -17,11 +17,11 @@
 直接说「安装 @oh-agent/dsh-mcp-manager」，等价于：
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.4"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.5"
 ```
 
 `target` 也可以填一个绝对目录 —— 本地源码目录，或者
-[v0.1.4 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
+[v0.1.5 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
 `dsh-mcp-manager.tgz` 解出来的目录。
 
 **不要**手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
@@ -135,11 +135,13 @@ client.js  (设置页)                 index.js  (宿主入口)
 
 | 服务器是 | 开关做的事 | 生效时机 |
 | --- | --- | --- |
-| 我们自己写的 `- insert:` 项 | 关：删掉该项；开：重写它 | 重排后生效；文件回到精确的原始字节 |
 | 已经是运行中的 `dsh-mcp-client` 行 | `pluginManager.setPluginEnabled(rowId, …)` | 立即 —— 行卸载，其工具从工具列表消失 |
+| 我们自己写的 `- insert:` 项 | 关：删掉该项；开：重写它 | 重排后生效；文件回到精确的原始字节 |
 | 用户自己写的 `- insert:` 项 | 追加/移除插件管理器自己也会写的那种 `- id: …` / `disabled: true` 覆盖项 | 重排后生效 |
 | 只声明在别的工具里，且被打开 | 写一条新的 `- insert:` 行 | Loader 重排后即生效（通常 1–4 秒）；操作最多等 8 秒并上报 `live: true`，否则 `activating: true` |
 | 哪里都没挂载，且被关闭 | 什么都不做 —— 本就是事实，不留悬空覆盖项 | — |
+
+顺序很重要，这是踩过的坑：**Loader 路径必须排在改文件之前**。上面第一行和下面几行会同时命中 —— 我们自己写过的 `- insert:` 项，一旦被 Loader 读进来就是一条活的 entry。早先的版本先判「这行是我们的就删文件」，结果关一次开关，删掉的是 YAML 行（要重排才生效），而不是热卸载那个正在跑的实例；更糟的是重新打开时该块会被追加到文件末尾，用户精心排过序的 `cordis.patch.yml` 被搬了家。实测过一次：15640 字节的文件在开关一轮之后 SHA 变了、`mcp-playwright` 整块从前面挪到了文件尾。现在先走 Loader，只有在根本不存在这个 entry 时才回落到改文件，`scripts/test-toggle.mjs` 用「开关一轮之后补丁文件字节零变化」钉住了这件事。
 
 我们自己写的行会在尝试 Loader 路径之前被移除：插件管理器确实能热卸载一行，但它的做法是在定义旁边追加一条 `disabled: true` 覆盖项，那会让我们的行和这条覆盖项一起永久留在用户的组合文件里。删除 insert 项既是卸载也是清理。
 
@@ -157,14 +159,23 @@ client.js  (设置页)                 index.js  (宿主入口)
 | --- | --- |
 | `已加载 · N 个工具` | 连接成功，工具已注册，agent 现在就能调 |
 | `已挂载但加载失败` + 「重试」 | 行挂上了，但一个工具都没注册 —— 进程没起来或握手失败 |
+| 页面顶部红色横幅 + 「全部重试」 | 有 N 个服务器挂上了却连不上，一次把失败的全部重试 |
 | `正在激活` | 刚写完补丁行，Loader 还没重排完 |
 | `加载状态未知` | 读不到工具注册表（老版本宿主），此时**不下结论**，绝不误判成失败 |
 
-拿不到注册表时宁可显示「未知」也不显示「失败」：把一台健康的服务器标成坏的，比不标更糟。
+拿不到注册表时宁可显示「未知」也不显示「失败」：把一台健康的服务器标成坏的，比不标更糟。同理，红色横幅只在注册表可读时才出现 —— 否则每一行都是「未知」，那时候报「失败」纯属猜测。
 
-「重试」走的是 `hmr.reconcileProfile([entryId])`（在 `hmr.runExclusive` 里串行执行），它会让 Loader 重新导入那些失败的行并判定激活结果 —— 连接失败之后的退避重试是 mcp-client 自己的事，可它一旦放弃就什么都不注册、只等一次重载，而设置页给不了这次重载，所以必须由我们来触发。重连不是瞬时的（起进程 + 握手），因此按钮点完 2.5 秒后页面会自己再读一次状态。
+失败行的「重试」**不是** `hmr.reconcileProfile`。那个看着像正解，实际是个假动作：它只重启处于 **inactive** 的行，而 `@deepseek-ai/dsh-mcp-client` 在 `failOnStartupError: false` 下会把连接错误吞掉，fiber 一直是 **active**。拿一条死行实测过：`reconcileProfile` 返回成功，一个连接都没重建 —— 一个会说谎的重试按钮。
 
-`scripts/test-load.mjs` 钉住了这套判定，重点是 `unknown` / `failed` / `loaded` 三者的边界，以及按名字归属工具时不能张冠李戴。
+真正的杠杆是 `pluginManager.setPluginEnabled(entryId, false)` 再 `(entryId, true)`：先 dispose 掉那条死 fiber，再重新走一遍完整的挂载。据此分三步：
+
+1. `setPluginEnabled(entryId, false)` 拆掉旧连接 —— 这一步失败就直接报「could not dispose the stale connection: <code>」，不要假装重试过；
+2. `setPluginEnabled(entryId, true)` 重建 —— 抛异常时尽力恢复成「开着」，宁可保留一个连不上的行，也不能把用户的服务悄悄关掉；
+3. 轮询工具注册表（`mcp__<挂载名>__*`）直到出现工具或超时。**判定依据是注册表，不是组合文件**：重建后的 fiber 会立刻出现在组合里，可只有它真注册上工具才算连上了。
+
+为什么轮询注册表而不是直接看 fiber：fiber `active` 只说明「这个插件被加载了」，连不上也照样 active，这正是当初「显示已挂载、其实加载失败」的根源。重连不是瞬时的（起进程 + 握手），所以按钮点完 2.5 秒后页面会自己再读一次状态；等不到工具时提示里带的是宿主返回的真实原因，而不是一句「出错了」。
+
+`scripts/test-load.mjs` 钉住了判定边界（`unknown` / `failed` / `loaded` 三者不能互相冒充，按名字归属工具也不能张冠李戴），`scripts/test-retry.mjs` 钉住了重试本身：必须是「先关后开」两次调用、失败原因要原样透出、重建失败时不能把行留在关闭状态。
 
 ### 挂载名不总是显示名
 

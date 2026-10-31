@@ -323,6 +323,44 @@ await checkAsync('a scanned entryId is tried before the include convention', asy
   );
   assert.equal(manager.calls[0].id, '89b7e61a');
 });
+/*
+ * REGRESSION — a row WE created that has also gone live must still be switched
+ * through the Loader.
+ *
+ * `ownedByUs` used to be checked BEFORE the Loader path, so switching such a row
+ * off deleted its `- insert:` item instead of disposing the running instance.
+ * That is not only the slower path (it needs a reload); on re-enable the item is
+ * appended back, which MOVED the block to the end of cordis.patch.yml and
+ * destroyed the user's authored ordering — measured as 1161 differing bytes
+ * against a pristine backup.
+ */
+await checkAsync('a live row we own is switched hot, never deleted from the patch file', async () => {
+  const fresh = mkdtempSync(join(tmpdir(), 'mcpm-ownedlive-'));
+  const profile = join(fresh, 'profile');
+  mkdirSync(profile, { recursive: true });
+  const patched = join(profile, 'cordis.patch.yml');
+  writeFileSync(patched, '- id: other\n  name: x\n', 'utf8');
+  const liveStore = createStore({ root: join(fresh, 'state') });
+  writeDshPatchServer({ server: SERVER, store: liveStore, profileDir: profile });
+  liveStore.recordOwnership({
+    serverName: 'context7', clientId: 'dsh', scope: 'profile',
+    path: '(profile composition)', fingerprint: 'deadbeef',
+  });
+  const mounted = readFileSync(patched, 'utf8');
 
-console.log(`\n${passing} passing${failures.length ? `, ${failures.length} failing` : ''}`);
+  /* This time a live row DOES answer — the Loader must win over the deletion. */
+  const manager = fakeManager();
+  const result = await toggleServer(
+    { get: (k) => (k === 'pluginManager' ? manager : undefined), profileDir: profile, store: liveStore },
+    { name: 'context7', enabled: false, entryId: 'include:mcp-context7' },
+  );
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.via, 'loader', 'a live row must be disposed hot, not deleted from the file');
+  assert.equal(result.unmounted, undefined, 'the row must not be reported as unmounted from the file');
+  assert.equal(readFileSync(patched, 'utf8'), mounted, 'the patch file must be untouched, so row order survives');
+  assert.equal(manager.calls.length, 1);
+});
+
+console.log(`
+${passing} passing${failures.length ? `, ${failures.length} failing` : ''}`);
 if (failures.length) process.exitCode = 1;
