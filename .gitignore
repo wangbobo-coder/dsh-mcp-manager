@@ -3,3 +3,9 @@ node_modules/
 npm-debug.log*
 .DS_Store
 Thumbs.db
+
+# Local credentials: an npm token or an app secret copied into the working tree
+# must never reach a commit. Publishing only ships `files[]`, but the repo is
+# what people copy from, so keep the door shut here too.
+.npmrc
+.env
