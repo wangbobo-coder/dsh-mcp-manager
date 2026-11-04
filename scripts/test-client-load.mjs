@@ -143,9 +143,21 @@ const component = registered.slots[0].component;
 
 const SNAPSHOT = {
   clients: [
-    { id: 'dsh', label: { en: 'DeepSeek Harness', zh: 'DeepSeek Harness' }, order: 5, installed: true, managed: true, readOnly: false },
-    { id: 'qoder-ide', label: { en: 'Qoder IDE', zh: 'Qoder' }, order: 30, installed: true, managed: false, readOnly: false },
-    { id: 'continue', label: { en: 'Continue', zh: 'Continue' }, order: 80, installed: true, managed: false, readOnly: true },
+    {
+      id: 'dsh', label: { en: 'DeepSeek Harness', zh: 'DeepSeek Harness' }, order: 5, installed: true, managed: true,
+      readOnly: false, canWrite: true, format: 'entry', caps: { enabled: true, timeoutMs: false },
+      locations: [{ scope: 'profile', path: '(profile composition)' }],
+    },
+    {
+      id: 'qoder-ide', label: { en: 'Qoder IDE', zh: 'Qoder' }, order: 30, installed: true, managed: false,
+      readOnly: false, canWrite: true, format: 'json', caps: { enabled: true, timeoutMs: true },
+      locations: [{ scope: 'global', path: 'C:\\Users\\x\\AppData\\Roaming\\Qoder\\SharedClientCache\\mcp.json' }],
+    },
+    {
+      id: 'continue', label: { en: 'Continue', zh: 'Continue' }, order: 80, installed: true, managed: false,
+      readOnly: true, canWrite: false, format: 'yaml', caps: { enabled: true },
+      locations: [{ scope: 'global', path: 'C:\\Users\\x\\.continue\\config.yaml' }],
+    },
   ],
   sources: [
     {
@@ -191,10 +203,12 @@ const SNAPSHOT = {
 function render(state, active = 'en', overrides = {}) {
   /*
    * The page declares its hooks in a fixed order (see lib/client.js): state,
-   * error, loading, reveal, query, toolFilter, statusFilter, openName,
-   * expanded, probes, probing, busy, toast, snippet, syncOpen, syncPicks,
-   * historyOpen. Replaying a value per hook lands the component in its LOADED
-   * state instead of its first-render loading state.
+   * error, loading, reveal, query, toolFilter, statusFilter, openName, expanded,
+   * probes, probing, retrying, busy, toast, snippet, syncOpen, syncPicks,
+   * historyOpen, addOpen, addForm, addError, adding. Replaying one value per
+   * hook lands the component in its LOADED state instead of its first-render
+   * loading state; the list must stay in the same order as the component or
+   * every value after a mismatch is off by one.
    *
    * `expanded` defaults to every card OPEN so a test that inspects rows does not
    * have to know each source id. That default belongs to the TEST, not to the
@@ -211,7 +225,11 @@ function render(state, active = 'en', overrides = {}) {
       state, null, false, false,
       overrides.query ?? '', overrides.toolFilter ?? 'all', overrides.statusFilter ?? 'all',
       overrides.openName ?? null, overrides.expanded ?? allOpen,
-      {}, {}, false, null, null, false, [], overrides.historyOpen ?? false,
+      {}, {}, {},
+      false, null,
+      null, false, [],
+      overrides.historyOpen ?? false,
+      overrides.addOpen ?? false, overrides.addForm ?? null, overrides.addError ?? null, false,
     ];
   /*
    * The slot registration closes over the ctx passed to apply, so a locale
@@ -534,6 +552,89 @@ check('a failed row carries the inline retry button next to its status', () => {
 check('a healthy page shows no failure banner', () => {
   const tree = render(SNAPSHOT);
   assert.equal(findByClass(tree, 'mcpm-banner-row').length, 0, 'nothing failed, so nothing to retry');
+});
+
+/* ---------------------------------------------------------- manual add -- */
+
+const ADD_FORM = { clientId: 'dsh', scope: 'profile', config: '' };
+
+/** The add dialog, as a subtree, so filter-row selects cannot be confused with it. */
+function addDialog(tree) {
+  const dialog = findByClass(tree, 'mcpm-form')[0];
+  assert(dialog, 'the add dialog should render a form');
+  return dialog;
+}
+function labelsOf(node) {
+  return findByClass(node, 'mcpm-label').map((label) => label.children.join(''));
+}
+
+check('the title row offers "Add server" as a primary action', () => {
+  const tree = render(SNAPSHOT);
+  const add = findByClass(tree, 'mcpm-btn').filter((node) => node.children.join('') === 'Add server');
+  assert.equal(add.length, 1, 'exactly one add button in the header');
+  assert.equal(add[0].props.disabled, false, 'a loaded snapshot enables it');
+  assert(typeof add[0].props.onClick === 'function');
+});
+
+check('the add dialog only offers tools this plugin can write', () => {
+  const tree = render(SNAPSHOT, 'en', { addOpen: true, addForm: ADD_FORM });
+  assert.equal(findByClass(tree, 'mcpm-overlay').length, 1, 'the dialog is a modal');
+  const form = addDialog(tree);
+  const selects = findByClass(form, 'mcpm-select');
+  assert.equal(selects.length, 2, 'target and scope selects');
+  const targets = selects[0].children.map((option) => option.props.value);
+  assert.equal(targets.join('|'), 'dsh|qoder-ide', 'read-only Continue must not be offered');
+  assert.equal(selects[0].props.value, 'dsh', 'DeepSeek Harness is the default target');
+  assert.equal(selects[1].props.value, 'profile', 'the Harness has profile scope only');
+});
+
+check('the definition is one JSON box, with a Trae-shaped example as its placeholder', () => {
+  const tree = render(SNAPSHOT, 'en', { addOpen: true, addForm: ADD_FORM });
+  const form = addDialog(tree);
+  const boxes = findByClass(form, 'mcpm-textarea-json');
+  assert.equal(boxes.length, 1, 'exactly one JSON box');
+  assert.equal(boxes[0].type, 'textarea');
+  assert.equal(boxes[0].props.value, '');
+  assert(String(boxes[0].props.placeholder).includes('mcpServers'), 'the placeholder shows the paste shape');
+  assert(typeof boxes[0].props.onChange === 'function');
+  const labels = labelsOf(form);
+  assert(labels.some((label) => label.startsWith('Configuration JSON')), `expected the JSON label, got ${JSON.stringify(labels)}`);
+});
+
+check('the label counts the entries once the JSON parses', () => {
+  const config = JSON.stringify({ mcpServers: { one: { command: 'npx' }, two: { command: 'node' } } });
+  const tree = render(SNAPSHOT, 'en', { addOpen: true, addForm: { ...ADD_FORM, config } });
+  const labels = labelsOf(addDialog(tree));
+  assert(labels.some((label) => label.includes('2 server(s) in this configuration')), `expected an entry count, got ${JSON.stringify(labels)}`);
+});
+
+check('a rejected paste shows its reason inside the dialog, not as a page error', () => {
+  const tree = render(SNAPSHOT, 'en', {
+    addOpen: true,
+    addForm: { ...ADD_FORM, config: '{ "mcpServers": { "patch-demo": { "command": "node" } } }' },
+    addError: 'Added 0, refused 1.\npatch-demo: “patch-demo” already exists in a DeepSeek Harness row',
+  });
+  const errors = findByClass(addDialog(tree), 'mcpm-form-error');
+  assert.equal(errors.length, 1, 'one inline error block');
+  const text = errors[0].children.join('');
+  assert(text.includes('refused 1'), text);
+  assert(text.includes('already exists'), text);
+});
+
+check('the form cannot be submitted with an empty box', () => {
+  const tree = render(SNAPSHOT, 'en', { addOpen: true, addForm: ADD_FORM });
+  const submit = findByClass(addDialog(tree), 'mcpm-btn').filter((node) => node.children.join('') === 'Add');
+  assert.equal(submit.length, 1, 'one submit button');
+  assert.equal(submit[0].props.disabled, true, 'an empty paste disables the submit');
+});
+
+check('a paste with content enables the submit', () => {
+  const tree = render(SNAPSHOT, 'en', {
+    addOpen: true,
+    addForm: { ...ADD_FORM, config: '{ "mcpServers": { "demo": { "command": "npx" } } }' },
+  });
+  const submit = findByClass(addDialog(tree), 'mcpm-btn').filter((node) => node.children.join('') === 'Add');
+  assert.equal(submit[0].props.disabled, false);
 });
 
 console.log(`\n${passing} passing${failures.length ? `, ${failures.length} failing` : ''}`);

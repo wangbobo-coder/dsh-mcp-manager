@@ -31,7 +31,7 @@ const profileDir = join(root, 'profile');
 mkdirSync(profileDir, { recursive: true });
 const patchPath = join(profileDir, 'cordis.patch.yml');
 
-const REAL = join(process.env.DSH_PROFILE_DIR ?? join(process.env.DSH_HOME ?? '', 'profiles', 'desktop'), 'cordis.patch.yml');
+const REAL = join(process.env.DSH_PROFILE_DIR?.trim() || join(process.env.DSH_HOME?.trim() || '', 'profiles', 'desktop'), 'cordis.patch.yml');
 const hasReal = existsSync(REAL);
 
 /*

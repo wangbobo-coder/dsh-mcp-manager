@@ -17,11 +17,11 @@
 直接说「安装 @oh-agent/dsh-mcp-manager」，等价于：
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.5"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.6"
 ```
 
 `target` 也可以填一个绝对目录 —— 本地源码目录，或者
-[v0.1.5 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
+[v0.1.6 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases) 里附的
 `dsh-mcp-manager.tgz` 解出来的目录。
 
 **不要**手动 `pnpm add` 进 profile，也不要手改 profile 的 `package.json` 或
@@ -108,6 +108,8 @@ client.js  (设置页)                 index.js  (宿主入口)
   如果预算内没等到，它上报 `activating: true`，**绝不**说「需要重启」：补丁行只会写在 Loader 看得见的地方，所以它迟早会生效。给一个正在生效中的服务器提示重启是实测出来的错误 —— 连续挂载多个服务器会把重排推过任何固定预算，随后它们全部以 live 出现。
 
   发现逻辑读的是 `entry.options.name`，不是 `entry.name`：运行中的 Loader 条目自身没有 `name` 属性（已在运行中的 Host 上验证过），读错字段会静默匹配到零行 —— 结果每个已挂载的服务器都看起来没生效，并索要一次根本不需要的重启。
+
+  补丁行写进**哪个 profile** 只认正在跑的那个 Host：`profileContext`（`boot()` 在任何 profile 插件加载之前 `provide`，含 `{ name, dir }`）排第一，`DSH_PROFILE_DIR`、`--profile` 参数、`DSH_PROFILE` 依次兜底，机器上恰好只有一个 profile 时才用「唯一」这个事实，否则报 `error.dsh.noProfile` 拒绝写。**不能只靠 `DSH_PROFILE_DIR`**：`dsh-shell-env` 只把它注入 *shell 工具*的执行环境，从不注入 Host 自己的进程 —— 桌面版就是这种情况，加上本机有 5 个 profile，旧逻辑必然解析失败，添加服务器时报 `cannot locate the active DSH profile`。反向也不行：早先退回 `~/.dsh/profiles/desktop` 会写进一个根本没在跑的 profile，行是真的，Loader 永远看不见。
 
 ## 安全模型
 
@@ -201,10 +203,14 @@ client.js  (设置页)                 index.js  (宿主入口)
 
 点击一行打开对话框，而不是在原地展开 —— 原地展开会把它下面每一行都重排，让一张卡片看起来像两张叠在一起。对话框列出声明该服务器的每个文件、统一后的定义、一条可直接粘贴进 cordis 组合的 YAML 行，以及「复制到…」用于把定义推到别的工具。
 
+标题行第一个按钮是「添加服务器」：把现成的 JSON 直接粘进去就行（Trae / Cursor / Claude 那种 `{"mcpServers":{…}}`），选好写入到哪个工具、哪个作用域即可。同样接受 VS Code 的 `servers`、OpenCode 的 `mcp`、Zed 的 `context_servers` 包装，也接受一个「名称 → 条目」映射或带 `name` 的单个条目；一次粘多个就一次写入多个。
+
+写回用的是读这些文件时的同一套适配器，所以粘过来的条目会按目标工具的方言重写：选 Cursor 就是 Cursor 的 `mcpServers`，选 OpenCode 就写 `command` 数组、`environment` 和 `local`/`remote`，选 Windsurf 就把远程地址写成 `serverUrl`，选 DeepSeek Harness 就写 profile 补丁行并等 Loader 激活。目标工具还没有配置文件时会新建；同名条目**拒绝写入并在对话框里列出原因**，其余条目照常写入 —— 不会悄悄改名成 `name-2`，也不会覆盖已有定义。
+
 同一批操作也以 `mcp_manage` 工具暴露给 agent，所以页面和 agent 共用一份实现，不可能走岔：
 
 ```
-action: scan | probe | retry | toggle | apply | remove | sync | snippet | reveal | history
+action: scan | probe | retry | toggle | apply | add | remove | sync | snippet | reveal | history
 ```
 
 ## 配置
@@ -226,14 +232,15 @@ action: scan | probe | retry | toggle | apply | remove | sync | snippet | reveal
 
 磁盘上发现 21 处明文凭据 —— 多数在 `env` 映射里，一处在命令行参数里（Qoder `mcp.json` 的 `--figma-api-key`）。它们的字面值没有出现在 state 载荷的任何位置；页面只显示键名，写入路径拒绝被掩码的值。
 
-`scripts/` 下十四个测试套件覆盖编辑器、路径层、写入路径、DSH 适配器、补丁层、挂载开关、运行时加载状态判定、非 ASCII 服务器名的挂载名映射、脱敏与掩码写入防护、发布元数据一致性，外加一次端到端断言：没有任何凭据字面值进入客户端载荷。
+`scripts/` 下十七个测试套件覆盖编辑器、路径层、写入路径、粘贴 JSON 的解析与各方言写回、批次写入、DSH 适配器、补丁层、挂载开关、运行时加载状态判定、活动 profile 的解析、非 ASCII 服务器名的挂载名映射、脱敏与掩码写入防护、发布元数据一致性，外加一次端到端断言：没有任何凭据字面值进入客户端载荷。
 
 ```
 node scripts/test-surgical.mjs      17 passing
 node scripts/test-write.mjs         12 passing
+node scripts/test-add.mjs            26 passing
 node scripts/test-dsh.mjs           16 passing
 node scripts/test-dsh-patch.mjs     15 passing
-node scripts/test-dsh-e2e.mjs        8 passing
+node scripts/test-dsh-e2e.mjs       11 passing
 node scripts/test-toggle.mjs        16 passing
 node scripts/test-load.mjs          15 passing
 node scripts/test-redact.mjs        14 passing
@@ -242,14 +249,14 @@ node scripts/test-client-load.mjs   28 passing
 node scripts/test-paths.mjs         16 passing
 node scripts/test-mount-name.mjs    12 passing
 node scripts/test-locale.mjs         en/zh key parity
-node scripts/test-release.mjs        11 passing
+node scripts/test-profile-dir.mjs     7 passing`nnode scripts/test-release.mjs        11 passing
 ```
 
 ## 已知限制
 
 - **安装检测靠文件存在性。** 装了但还没有 MCP 配置的工具，在目录出现之前与「没装」无法区分。
 - **新挂载的 DSH 服务器依赖 Loader 重排。** 操作最多等 8 秒并上报 `live: true`；窗口过期则上报 `activating: true`，页面稍后重新读取状态。对 Loader 看得见的行，永不索要重启。
-- **不是我们写的行只被关闭，不会被删除。** 删掉用户粘进去的定义等于毁掉他的工作，所以这样的行会得到与插件管理器相同的那种 `disabled: true` 覆盖项，并留在文件里。
+- **不是我们写的行只被关闭，不会被删除。** 删掉用户粘进去的定义等于毁掉他的工作，所以这样的行会得到与插件管理器相同的那种 `disabled: true` 覆盖项，并留在文件里；删除请求会返回 `error.dsh.notPatchRow`。本插件自己写的行则是删掉它写的那条补丁项 —— `configEditor` 只能改行的配置、不能删行，硬删 `serverName` 会被 mcp-client 的 schema 拒绝。
 - **只有 DSH 可切换。** 其他工具的文件只被显式读写，从不切换 —— 见上文。
 - **加载状态只能看见 DSH 自己的连接。** 别的工具的服务器有没有真正跑起来，只有点「探活」才知道；它们不在这个 Harness 的工具注册表里，没别的地方能读到。
 - **没有工具的服务会被报成「加载失败」。** 判定依据是工具注册表，所以一个连接完全成功、但本身不提供任何工具的服务器，看起来和连不上是一样的。这种服务器很少，但确实存在。

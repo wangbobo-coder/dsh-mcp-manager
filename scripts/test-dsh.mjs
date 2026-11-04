@@ -10,7 +10,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { mcpEntries, decodeDshEntry, encodeDshEntry, upsertDshServer, removeDshServer, dshSnippet, MCP_CLIENT_PACKAGE } from '../lib/dsh.js';
+import { mcpEntries, decodeDshEntry, encodeDshEntry, upsertDshServer, dshSnippet, MCP_CLIENT_PACKAGE } from '../lib/dsh.js';
 
 let pass = 0;
 function check(name, fn) {
@@ -212,14 +212,15 @@ await check('a new row is refused with an actionable code, not a crash', () => {
   });
 });
 
-await check('removal blanks the row config', () => {
-  const editor = fakeEditor([
-    { entry: entry('mcp-a'), override: { serverName: 'alpha', transport: 'stdio', command: 'x' } },
-  ]);
-  const row = mcpEntries(editor)[0];
-  return removeDshServer(editor, row).then((result) => {
-    assert.equal(result.ok, true, JSON.stringify(result));
-    assert.equal(editor.state[0].override.serverName, undefined);
+/*
+ * There is no config-level row removal, by design: `configEditor.edit` rewrites a
+ * row's config and cannot delete the row, and mcp-client's schema requires
+ * `serverName`, so the old "blank the row" edit was rejected while the row
+ * survived. Removal is the patch item's removal — covered by test-dsh-e2e.
+ */
+await check('dsh.js exposes no config-editing removal', () => {
+  return import('../lib/dsh.js').then((module) => {
+    assert.equal(module.removeDshServer, undefined, 'a removal that cannot delete the row must not exist');
   });
 });
 

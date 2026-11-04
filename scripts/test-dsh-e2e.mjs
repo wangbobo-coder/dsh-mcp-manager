@@ -31,7 +31,7 @@ function check(name, fn) {
 const root = mkdtempSync(join(tmpdir(), 'mcpm-e2e-'));
 const profileDir = join(root, 'profile');
 mkdirSync(profileDir, { recursive: true });
-const REAL = join(process.env.DSH_PROFILE_DIR ?? join(process.env.DSH_HOME ?? '', 'profiles', 'desktop'), 'cordis.patch.yml');
+const REAL = join(process.env.DSH_PROFILE_DIR?.trim() || join(process.env.DSH_HOME?.trim() || '', 'profiles', 'desktop'), 'cordis.patch.yml');
 /*
  * Strip any mounted MCP rows out of the fixture.
  *
@@ -137,6 +137,70 @@ check('removing it a second time reports missing instead of succeeding', () => {
 check('every write was backed up first', () => {
   assert.ok(backups.length >= 2, `expected a backup per write, got ${backups.length}`);
   assert.ok(backups.every((entry) => typeof entry.text === 'string'));
+});
+
+/*
+ * The case that used to be broken: the row has ALREADY been reconciled into a
+ * live entry (normal in a running Harness). Removal must not try to blank that
+ * row's config — `configEditor` cannot delete a row and mcp-client requires
+ * `serverName`, so the edit was rejected and the row survived the request.
+ * The patch item is the part this plugin owns, and removing it is the removal.
+ */
+console.log('removal with a live row');
+function fakeEditor(rows) {
+  const state = { rows: [...rows], edits: 0 };
+  return {
+    state,
+    configuration() { return state.rows; },
+    async edit() {
+      state.edits += 1;
+      throw new Error('a live row must not be edited to remove it');
+    },
+  };
+}
+
+const liveName = 'zz-live-probe';
+writeDshPatchServer({
+  server: { name: liveName, transport: 'stdio', command: 'npx', args: ['-y', 'live-probe-mcp'], env: {} },
+  store,
+  profileDir,
+});
+const editor = fakeEditor([{
+  entry: { id: `include:mcp-${liveName}`, name: '@deepseek-ai/dsh-mcp-client' },
+  inherited: {},
+  override: { serverName: liveName, transport: 'stdio', command: 'npx', args: ['-y', 'live-probe-mcp'] },
+}]);
+const liveRemoved = await removeServer(
+  { store, configEditor: editor, profileDir, removeWaitMs: 300 },
+  { clientId: 'dsh', scope: 'profile', name: liveName },
+);
+
+check('a live row is removed through its patch item, not by editing its config', () => {
+  assert.equal(liveRemoved.ok, true, liveRemoved.error ?? liveRemoved.code);
+  assert.equal(liveRemoved.via, 'patch');
+  assert.equal(readDshPatchServers(profileDir).some((server) => server.name === liveName), false, 'the patch item is gone');
+  assert.equal(editor.state.edits, 0, 'configEditor.edit must not be called');
+});
+
+check('a still-reconciling removal reports activating, not a live lie', () => {
+  assert.equal(liveRemoved.live, false, 'the fake row cannot disappear, so live must be false');
+  assert.equal(liveRemoved.activating, true);
+  assert.equal(liveRemoved.restartRequired, false);
+});
+
+check('a live row this plugin never wrote is refused, and left alone', async () => {
+  const otherEditor = fakeEditor([{
+    entry: { id: 'include:mcp-not-ours', name: '@deepseek-ai/dsh-mcp-client' },
+    inherited: {},
+    override: { serverName: 'not-ours', transport: 'stdio', command: 'npx' },
+  }]);
+  const result = await removeServer(
+    { store, configEditor: otherEditor, profileDir, removeWaitMs: 100 },
+    { clientId: 'dsh', scope: 'profile', name: 'not-ours' },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'error.dsh.notPatchRow');
+  assert.equal(otherEditor.state.edits, 0);
 });
 
 console.log(`\n${pass} passing`);

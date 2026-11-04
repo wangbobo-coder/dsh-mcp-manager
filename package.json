@@ -1,7 +1,7 @@
 {
   "name": "@oh-agent/dsh-mcp-manager",
-  "version": "0.1.5",
-  "description": "One settings page for every MCP server on your machine: scan each AI tool's own config file, see which directory holds which server, probe whether it really starts, tell you whether it actually loaded in DeepSeek Harness with a retry button, and mount or unmount it without ever editing the other tools' files. / 一个设置页管理本机所有 AI 开发工具的 MCP：按配置文件分组展示、真连探活、明确显示在 DeepSeek Harness 里是否真正加载成功并可重试，只在 Harness 内挂载/卸载，绝不改动其他工具的配置。",
+  "version": "0.1.6",
+  "description": "One settings page for every MCP server on your machine: scan each AI tool's own config file, see which directory holds which server, probe whether it really starts, tell you whether it actually loaded in DeepSeek Harness with a retry button, mount or unmount it without ever editing the other tools' files, and add a server by pasting its JSON into any tool's own format. / 一个设置页管理本机所有 AI 开发工具的 MCP：按配置文件分组展示、真连探活、明确显示在 DeepSeek Harness 里是否真正加载成功并可重试，只在 Harness 内挂载/卸载，绝不改动其他工具的配置；也可以直接粘贴 MCP 的 JSON 配置，按目标工具自己的格式写入。",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",

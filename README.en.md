@@ -17,12 +17,12 @@ Install the bundle from the **Plugin Manager** page in Settings, or point
 `plugin_manager` at the npm package:
 
 ```
-plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.5"
+plugin_manager  action: install_bundle  target: "@oh-agent/dsh-mcp-manager@0.1.6"
 ```
 
 An absolute directory works as `target` too, which is how you install a local
 checkout or the `dsh-mcp-manager.tgz` attached to the
-[v0.1.5 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
+[v0.1.6 release](https://github.com/wangbobo-coder/dsh-mcp-manager/releases).
 
 Do not `pnpm add` the package into the profile by hand, and do not edit the
 profile's `package.json` or `cordis.patch.yml`: installing a package is not the
@@ -161,6 +161,19 @@ client.js  (settings page)          index.js  (host entry)
   has no `name` property of its own (verified against a running Host), and
   checking the wrong field silently matches zero rows — which made every mounted
   server look unreconciled and demand a restart that was never required.
+
+  Which profile a patch row is written into is decided by the Host that is
+  actually running: `profileContext` (provided by `boot()` before any profile
+  plugin loads, carrying `{ name, dir }`) comes first, then
+  `DSH_PROFILE_DIR`, the `--profile` flag and `DSH_PROFILE`, and "there is
+  exactly one profile on this machine" only as the last resort; otherwise the
+  write is refused with `error.dsh.noProfile`. **`DSH_PROFILE_DIR` alone is not
+  enough**: `dsh-shell-env` injects it into *shell tool* executions only, never
+  into the Host's own process — which is exactly the Desktop app, so with
+  several profiles on the machine the old lookup had to fail and adding a
+  server reported `cannot locate the active DSH profile`. The opposite guess is
+  no better: falling back to `~/.dsh/profiles/desktop` wrote real rows into a
+  profile that never runs, where the Loader could never see them.
 
 ## Safety model
 
@@ -365,11 +378,26 @@ The dialog lists every file that declares the server, the canonical definition,
 a paste-ready YAML row for a cordis composition, and "copy to…" for pushing the
 definition into another tool.
 
+The first button in the title row is "Add server": paste the JSON you already have
+(Trae / Cursor / Claude style `{"mcpServers":{…}}`), pick which tool and scope it
+goes into, and it is written. The VS Code `servers`, OpenCode `mcp` and Zed
+`context_servers` wrappers are accepted too, as is a bare name→entry map or a
+single entry carrying `name`; paste several and several are written.
+
+The write goes through the same adapters that read those files, so a pasted entry
+is re-encoded in the TARGET's dialect: Cursor gets Cursor's `mcpServers` shape,
+OpenCode gets the array `command`, `environment` and `local`/`remote`, Windsurf
+gets the remote URL as `serverUrl`, and DeepSeek Harness gets a profile patch row
+the Loader reconciles into a live connection. A target with no config file yet
+gets one; a name that already exists there is **refused and listed with its
+reason in the dialog** while the other entries are still written — it never
+becomes `name-2` and never overwrites an existing definition.
+
 The same operations are exposed to the agent as the `mcp_manage` tool, so the
 page and the agent share one implementation and cannot diverge:
 
 ```
-action: scan | probe | retry | toggle | apply | remove | sync | snippet | reveal | history
+action: scan | probe | retry | toggle | apply | add | remove | sync | snippet | reveal | history
 ```
 
 ## Configuration
@@ -399,18 +427,20 @@ one in a command-line flag (`--figma-api-key` in Qoder's `mcp.json`). None of
 their literals appears anywhere in the state payload; the page shows only key
 names, and the write path refuses a masked value.
 
-Fourteen test suites under `scripts/` cover the editors, the path layer, the write
-path, the DSH adapter, the patch layer, the mount switch, runtime load-state
-detection, the mount-name mapping for non-ASCII server names, redaction and the
+Seventeen test suites under `scripts/` cover the editors, the path layer, the write
+path, pasted-JSON parsing and its per-dialect and batched writes, the DSH adapter,
+the patch layer, the mount switch, runtime load-state detection, active-profile
+resolution and the mount-name mapping for non-ASCII names, redaction and the
 masked-write guard, plus an end-to-end pass that asserts no credential literal
 reaches the client payload:
 
 ```
 node scripts/test-surgical.mjs      17 passing
 node scripts/test-write.mjs         12 passing
+node scripts/test-add.mjs            26 passing
 node scripts/test-dsh.mjs           16 passing
 node scripts/test-dsh-patch.mjs     15 passing
-node scripts/test-dsh-e2e.mjs        8 passing
+node scripts/test-dsh-e2e.mjs       11 passing
 node scripts/test-toggle.mjs        16 passing
 node scripts/test-load.mjs          15 passing
 node scripts/test-redact.mjs        14 passing
@@ -419,7 +449,7 @@ node scripts/test-client-load.mjs   28 passing
 node scripts/test-paths.mjs         16 passing
 node scripts/test-mount-name.mjs    12 passing
 node scripts/test-locale.mjs         en/zh key parity
-node scripts/test-release.mjs        11 passing
+node scripts/test-profile-dir.mjs     7 passing`nnode scripts/test-release.mjs        11 passing
 ```
 
 ## Known limits
